@@ -1,0 +1,47 @@
+group 'com.lambdalab'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'scala'
+
+
+repositories {
+  mavenCentral()
+}
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+idea {
+  project {
+    jdkName = '1.8'
+    languageLevel = '1.8'
+  }
+}
+def jgitVersion = '4.8.0.201706111038-r'
+sourceSets {
+  main {
+    scala {
+      srcDirs = ['src/main/scala']
+    }
+  }
+  test {
+    scala {
+      srcDirs = ['src/test/scala']
+    }
+  }
+}
+dependencies {
+  compile 'org.scala-lang:scala-library:2.11.8'
+  compile(group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: jgitVersion) {
+    exclude group: "org.apache.httpcomponents", module:"httpclient"
+  }
+  compile 'ch.qos.logback:logback-classic:1.2.3'
+  compile 'org.scalikejdbc:scalikejdbc_2.11:3.1.0'
+  compile 'org.apache.httpcomponents:httpclient:4.5'
+  compile 'commons-io:commons-io:2.6'
+  testCompile 'com.github.docker-java:docker-java:3.0.9'
+  testCompile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit.junit', version: jgitVersion
+  testCompile 'org.scalatest:scalatest_2.11:3.0.0'
+  testCompile group: 'junit', name: 'junit', version: '4.12'
+  testCompile 'mysql:mysql-connector-java:5.1.35'
+}
