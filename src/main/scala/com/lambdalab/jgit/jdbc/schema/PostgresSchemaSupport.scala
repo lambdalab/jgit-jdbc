@@ -6,14 +6,21 @@ import com.lambdalab.jgit.jdbc.io.LargeObjectDfsOutputStream
 import org.eclipse.jgit.internal.storage.dfs.DfsOutputStream
 import org.postgresql.PGConnection
 import org.postgresql.largeobject.LargeObjectManager
-import scalikejdbc.ConnectionPool
+import scalikejdbc._
 
 trait PostgresSchemaSupport extends JdbcSchemaSupport{
 
   lazy val packTableName = s"${tablePrefix}_packs"
   lazy val packDataTableName = s"${tablePrefix}_packs_data"
   lazy val refsTableName = s"${tablePrefix}_refs"
-  
+
+  override def isTableExists(tableName: String) = db localTx {
+    implicit s =>
+      sql"select * from pg_tables where tablename = ${tableName};"
+              .map(rs => rs).single().apply().isDefined
+  }
+
+
   override def createPackTable = db autoCommit { implicit session =>
     val createTable =
       s"""CREATE TABLE IF NOT EXISTS "$packTableName" (

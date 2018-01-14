@@ -18,7 +18,7 @@ object DockerTool {
   lazy val config = DefaultDockerClientConfig.createDefaultConfigBuilder()
   lazy val docker = DockerClientBuilder.getInstance(config).build()
 
-  def startContainer(name: String, image: String, ports: Map[Int, Int], Envs: Map[String, String], cmd: String = ""): String = {
+  def startContainer(name: String, image: String, ports: Map[Int, Int], envs: Map[String, String], cmds: String*): String = {
 //    docker.pullImageCmd(image).exec(new PullImageResultCallback).awaitSuccess()
     val exists = docker.listContainersCmd().withShowAll(true).exec().asScala.find{
       container =>
@@ -27,9 +27,10 @@ object DockerTool {
     if(exists.isDefined) {
       val id = exists.get.getId
       if (!exists.get.getStatus.startsWith("Up")){
-        docker.startContainerCmd(id).exec()
+        docker.removeContainerCmd(id).exec()
+      } else {
+        return id
       }
-      return id
     }
     val c = docker.createContainerCmd(image).withName(name)
     val bindings = new Ports()
@@ -42,9 +43,9 @@ object DockerTool {
     }
     c.withExposedPorts(exposes)
     c.withPortBindings(bindings)
-    c.withEnv(Envs.map(e => s"${e._1}=${e._2}").toSeq: _*)
-    if (cmd.nonEmpty) {
-      c.withCmd(cmd)
+    c.withEnv(envs.map(e => s"${e._1}=${e._2}").toSeq: _*)
+    if (cmds.nonEmpty) {
+      c.withCmd(cmds:_*)
     }
 
     val id = c.exec().getId

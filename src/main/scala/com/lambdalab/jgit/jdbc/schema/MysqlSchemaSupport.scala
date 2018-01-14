@@ -26,7 +26,7 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
         `ext` varchar(8) NOT NULL DEFAULT '',
         `data` blob,
         PRIMARY KEY (`id`,`ext`),
-        CONSTRAINT `fk_pack_id` FOREIGN KEY (`id`) REFERENCES `$packTableName` (`id`) ON DELETE CASCADE
+        CONSTRAINT `fk_pack_id` FOREIGN KEY (`id`) REFERENCES $packTableName(`id`) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8;"""
     session.execute(createDataTable)
   }
@@ -34,11 +34,10 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
   override def createRefTable = db autoCommit { implicit session =>
     val createTable =
       s"""CREATE TABLE IF NOT EXISTS $refsTableName (
-           `name` VARCHAR(255) NOT NULL DEFAULT '',
+           `name` VARCHAR(255) NOT NULL DEFAULT '' PRIMARY KEY,
            `object_id` varchar(40) DEFAULT NULL,
            `symbolic` tinyint(1) DEFAULT '0',
            `target` varchar(255) DEFAULT NULL
-        PRIMARY KEY (`ref`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8;"""
 
     session.execute(createTable)
