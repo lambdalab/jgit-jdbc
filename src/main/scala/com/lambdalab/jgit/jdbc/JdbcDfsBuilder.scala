@@ -1,7 +1,7 @@
 package com.lambdalab.jgit.jdbc
 
-import com.lambdalab.jgit.jdbc.schema.MysqlSchemaSupport
-import org.eclipse.jgit.internal.storage.dfs.{DfsRepositoryBuilder, DfsRepositoryDescription}
+import com.lambdalab.jgit.jdbc.schema.{MysqlSchemaSupport, PostgresSchemaSupport}
+import org.eclipse.jgit.internal.storage.dfs.{DfsRepository, DfsRepositoryBuilder, DfsRepositoryDescription}
 import scalikejdbc.NamedDB
 
 /**
@@ -10,20 +10,33 @@ import scalikejdbc.NamedDB
   * Date: 2018/1/12
   * Time: 下午4:21
   */
-abstract class JdbcDfsBuilder extends DfsRepositoryBuilder[JdbcDfsBuilder, JdbcDfsRepository] {
-
-}
-
-object JdbcDfsBuilder {
-  def createMysqlBuilder(repoName: String, dbName: Any) = {
-    val builder = new JdbcDfsBuilder() {
-      override def build() = {
-        new JdbcDfsRepository(this) with DBConnection with MysqlSchemaSupport{
-          override def db: NamedDB = NamedDB(dbName)
-        }
-      }
-    }
-    builder.setRepositoryDescription(new DfsRepositoryDescription(repoName))
-    builder
+trait JdbcDfsBuilder {
+  self: DfsRepositoryBuilder[_,_] =>
+  var dbName: Any = _
+  def setDBName(name: Any): this.type  = {
+    this.dbName = name
+    this
+  }
+  def setRepoName(name: String): this.type = {
+    this.setRepositoryDescription(new DfsRepositoryDescription(name))
+    this
   }
 }
+
+class MysqlRepoBuilder extends DfsRepositoryBuilder[MysqlRepoBuilder, MysqlDfsRepository] with JdbcDfsBuilder{
+  override def build() = new MysqlDfsRepository(this)
+}
+
+class MysqlDfsRepository(builder: MysqlRepoBuilder) extends JdbcDfsRepository(builder) with MysqlSchemaSupport {
+  override def db: NamedDB = NamedDB(builder.dbName)
+}
+
+class PostgresRepoBuilder extends DfsRepositoryBuilder[PostgresRepoBuilder, PostgresDfsRepository]  with JdbcDfsBuilder {
+  override def build() = new PostgresDfsRepository(this)
+}
+
+class PostgresDfsRepository(builder: PostgresRepoBuilder) extends JdbcDfsRepository(builder) with PostgresSchemaSupport {
+  override def db: NamedDB = NamedDB(builder.dbName)
+}
+
+

@@ -1,14 +1,17 @@
 package com.lambdalab.jgit.jdbc.schema
 
-import java.sql.Blob
+import java.sql.{Blob, ResultSet}
 
 import scalikejdbc._
 
 case class Pack(id: Long, source: String, committed: Boolean)
 
-class Packs(override val tableName: String, db: NamedDB) extends SQLSyntaxSupport[Pack] {
+trait Packs extends SQLSyntaxSupport[Pack] {
+  self: JdbcSchemaSupport =>
 
-  override def connectionPoolName: Any = db.name
+  override lazy val tableName = self.packTableName
+
+  override def connectionPoolName: Any = self.db.name
 
   def insertNew(source: String)(implicit dBSession: DBSession) = {
     val p = this.syntax("p")
@@ -22,20 +25,18 @@ class Packs(override val tableName: String, db: NamedDB) extends SQLSyntaxSuppor
   }
 
   def deleteAll(toDelete: Seq[Long])(implicit dBSession: DBSession) = {
-    val p = this.syntax("p")
     withSQL {
-      delete.from(this as p).where.in(p.id, toDelete)
+      delete.from(this).where.in(this.column.id, toDelete)
     }.execute().apply()
   }
 
   def commitAll(updates: Seq[Pack])(implicit dBSession: DBSession) = {
-    val p = this.syntax("p")
     updates.foreach { pack =>
       withSQL {
-        update(this as p).set(
-          p.source -> pack.source,
-          p.committed -> true
-        ).where.eq(p.id, pack.id)
+        update(this).set(
+          this.column.source -> pack.source,
+          this.column.committed -> true
+        ).where.eq(this.column.id, pack.id)
       }.execute().apply()
     }
   }
@@ -63,31 +64,42 @@ class Packs(override val tableName: String, db: NamedDB) extends SQLSyntaxSuppor
     }.map(table(p)).single().apply()
   }
 
-  def writeData(id: Long, ext: String, blob: Blob)(implicit dBSession: DBSession): Unit = {
+  def writeData(id: Long, ext: String, blob: Any)(implicit dBSession: DBSession): Unit = {
     val table = new PackDataTable()
-    SQL(
-      s"""
-      insert into `${table.tableName}`(id,ext,data) values({id}, {ext}, {data})
-      on duplicate key update  data = {data}
-    """)
-        .bindByName(
-          'id -> id,
-          'ext -> ext,
-          'data -> blob)
-        .update().apply()
+    val sql = self.getUpsertSql(table.tableName, "id,ext,data", "?,?,?" ,"data = ?")
+    val pstmt = dBSession.connection.prepareStatement(sql)
+    pstmt.setLong(1, id)
+    pstmt.setString(2, ext)
+    blob match {
+      case l: Long =>
+        pstmt.setLong(3, l)
+        pstmt.setLong(4, l)
+      case b: Blob =>
+        pstmt.setBlob(3, b)
+        pstmt.setBlob(4, b)
+      case _ =>
+        pstmt.setObject(3,blob)
+        pstmt.setObject(4,blob)
+    }
+    pstmt.executeUpdate()
+    pstmt.close()
   }
+
+  def clearTable()(implicit dBSession: DBSession): Unit = withSQL {
+    delete.from(this)
+  }.update().apply()
 
   case class PackData(id: Long, ext: String, data: Blob)
 
   class PackDataTable extends SQLSyntaxSupport[PackData] {
-    override val tableName = s"${Packs.this.tableName}_data"
+    override lazy val tableName = self.packDataTableName
 
     override def connectionPoolName: Any = db.name
 
     def apply(r: ResultName[PackData])(rs: WrappedResultSet): PackData = {
       PackData(id = rs.int(r.id),
         ext = rs.string(r.ext),
-        data = rs.blob(r.data)
+        data =  self.createBlobFromRs(rs.underlying, r.data)
       )
     }
 

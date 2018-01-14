@@ -1,14 +1,15 @@
 package com.lambdalab.jgit.jdbc.schema
 
-import org.eclipse.jgit.lib.ObjectIdRef.PeeledNonTag
 import org.eclipse.jgit.lib.{ObjectId, ObjectIdRef, Ref, SymbolicRef}
 import scalikejdbc._
 
 case class Reference(name: String, objectId: String, symbolic: Boolean, target: String)
 
-class References(override val tableName: String, db: NamedDB) extends SQLSyntaxSupport[Reference] {
+trait References extends SQLSyntaxSupport[Reference] {
+  self: JdbcSchemaSupport =>
+  override val tableName = self.refsTableName
 
-  override def connectionPoolName: Any = db.name
+  override def connectionPoolName: Any = self.db.name
 
   def apply(r: ResultName[Reference])(rs: WrappedResultSet): Reference =
     Reference(name = rs.string(r.name),
@@ -41,14 +42,13 @@ class References(override val tableName: String, db: NamedDB) extends SQLSyntaxS
     val objectId = Option(newRef.getObjectId).map(_.name())
     val symbolic = newRef.isSymbolic
     val target = Option(newRef.getTarget).map(_.getName)
-    SQL(s"""
-          insert into `$tableName` (name,object_id,symbolic,target)
-           values({name}, {objectId}, {symbolic}, {target})
-          on duplicate key update
-            object_id = {objectId},
-            symbolic = {symbolic},
-            target = {target}
-        """).bindByName(
+    val sql = getUpsertSql(tableName,
+      "name,object_id,symbolic,target",
+      "{name}, {objectId}, {symbolic}, {target}",
+      "object_id = {objectId},symbolic = {symbolic},target = {target}"
+    )
+
+    SQL(sql).bindByName(
       'name -> name,
       'objectId -> objectId,
       'symbolic -> symbolic,
@@ -105,4 +105,8 @@ class References(override val tableName: String, db: NamedDB) extends SQLSyntaxS
       select.from(this as r).orderBy(r.name)
     }.map(this (r)).list().apply()
   }
+
+  def clearTable()(implicit dBSession: DBSession): Unit = withSQL {
+    delete.from(this)
+  }.update().apply()
 }

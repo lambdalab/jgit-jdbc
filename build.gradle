@@ -2,7 +2,6 @@ group 'com.lambdalab'
 version '1.0-SNAPSHOT'
 
 apply plugin: 'java'
-apply plugin: 'idea'
 apply plugin: 'scala'
 
 
@@ -11,13 +10,9 @@ repositories {
 }
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
-idea {
-  project {
-    jdkName = '1.8'
-    languageLevel = '1.8'
-  }
-}
+
 def jgitVersion = '4.8.0.201706111038-r'
+
 sourceSets {
   main {
     scala {
@@ -35,6 +30,8 @@ dependencies {
   compile(group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: jgitVersion) {
     exclude group: "org.apache.httpcomponents", module:"httpclient"
   }
+  compileOnly 'postgresql:postgresql:9.1-901-1.jdbc4'
+
   compile 'ch.qos.logback:logback-classic:1.2.3'
   compile 'org.scalikejdbc:scalikejdbc_2.11:3.1.0'
   compile 'org.apache.httpcomponents:httpclient:4.5'
@@ -44,4 +41,5 @@ dependencies {
   testCompile 'org.scalatest:scalatest_2.11:3.0.0'
   testCompile group: 'junit', name: 'junit', version: '4.12'
   testCompile 'mysql:mysql-connector-java:5.1.35'
+  testCompile 'postgresql:postgresql:9.1-901-1.jdbc4'
 }

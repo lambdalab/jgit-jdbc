@@ -1,6 +1,6 @@
 package com.lambdalab.jgit.jdbc
 
-import com.lambdalab.jgit.jdbc.schema.References
+import com.lambdalab.jgit.jdbc.schema.{JdbcSchemaDelegate, JdbcSchemaSupport, References}
 import org.eclipse.jgit.internal.storage.dfs.DfsRefDatabase
 import org.eclipse.jgit.internal.storage.dfs.DfsRefDatabase.RefCache
 import org.eclipse.jgit.lib.Ref.Storage
@@ -8,10 +8,11 @@ import org.eclipse.jgit.lib._
 import org.eclipse.jgit.util.RefList
 import scalikejdbc._
 
-class JdbcDfsRefDatabase(repo: JdbcDfsRepository with DBConnection) extends DfsRefDatabase(repo) {
-  def db: NamedDB = repo.db
-  private val refs = new References(repo.refsTableName, db)
-
+class JdbcDfsRefDatabase(repo: JdbcDfsRepository with JdbcSchemaSupport) extends DfsRefDatabase(repo) {
+   def db: NamedDB = repo.db
+  val refs = new References  with JdbcSchemaDelegate {
+    override def delegate = repo
+  }
   override def compareAndPut(oldRef: Ref, newRef: Ref): Boolean = db localTx {
     implicit s =>
       if (oldRef == null) {
@@ -44,6 +45,10 @@ class JdbcDfsRefDatabase(repo: JdbcDfsRepository with DBConnection) extends DfsR
       refs.deleteRef(oldRef)
   }
 
+  def clear() = db localTx {
+    implicit s =>
+      refs.clearTable()
+  }
 }
 
 

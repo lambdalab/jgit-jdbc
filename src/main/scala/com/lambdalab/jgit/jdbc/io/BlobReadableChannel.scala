@@ -35,6 +35,7 @@ class BlobReadableChannel(blob: Blob, conn: DBConnection) extends ReadableChanne
   override def close(): Unit = {
     open = false
     blob.free()
+    conn.rollbackIfActive()
     conn.close()
   }
 

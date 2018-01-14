@@ -7,9 +7,10 @@ import java.util.concurrent.TimeUnit
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.CreateContainerResponse
 import com.github.dockerjava.api.model.{ExposedPort, Frame, Ports}
-import com.github.dockerjava.core.command.LogContainerResultCallback
+import com.github.dockerjava.core.command.{LogContainerResultCallback, PullImageResultCallback}
 import com.github.dockerjava.core.{DefaultDockerClientConfig, DockerClientBuilder}
 import com.github.dockerjava.core.async.ResultCallbackTemplate
+
 import scala.collection.JavaConverters._
 
 object DockerTool {
@@ -18,6 +19,7 @@ object DockerTool {
   lazy val docker = DockerClientBuilder.getInstance(config).build()
 
   def startContainer(name: String, image: String, ports: Map[Int, Int], Envs: Map[String, String], cmd: String = ""): String = {
+//    docker.pullImageCmd(image).exec(new PullImageResultCallback).awaitSuccess()
     val exists = docker.listContainersCmd().withShowAll(true).exec().asScala.find{
       container =>
       container.getNames.contains(s"/$name")

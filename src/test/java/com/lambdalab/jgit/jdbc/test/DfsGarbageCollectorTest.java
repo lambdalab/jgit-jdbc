@@ -32,16 +32,17 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-public class DfsGarbageCollectorTest {
-  private TestRepository<InMemoryRepository> git;
-  private InMemoryRepository repo;
+public abstract class DfsGarbageCollectorTest<T extends DfsRepository> {
+  private TestRepository<T> git;
+  private T repo;
   private DfsObjDatabase odb;
   private MockSystemReader mockSystemReader;
+  abstract protected T initRepo();
 
   @Before
   public void setUp() throws IOException {
     DfsRepositoryDescription desc = new DfsRepositoryDescription("test");
-    git = new TestRepository<>(new InMemoryRepository(desc));
+    git = new TestRepository<>(initRepo());
     repo = git.getRepository();
     odb = repo.getObjectDatabase();
     mockSystemReader = new MockSystemReader();
@@ -633,7 +634,7 @@ public class DfsGarbageCollectorTest {
     }
   }
 
-  private TestRepository<InMemoryRepository>.CommitBuilder commit() {
+  private TestRepository<T>.CommitBuilder commit() {
     return git.commit();
   }
 
