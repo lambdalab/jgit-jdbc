@@ -55,9 +55,7 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
     }
   }
 
-  override def newPack(source: DfsObjDatabase.PackSource): DfsPackDescription
-
-  = db localTx {
+  override def newPack(source: DfsObjDatabase.PackSource): DfsPackDescription = db localTx {
     implicit s =>
       toPackDescription(packs.insertNew(source.name()))
   }

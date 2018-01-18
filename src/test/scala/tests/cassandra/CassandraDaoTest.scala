@@ -2,24 +2,26 @@ package tests.cassandra
 
 import java.nio.ByteBuffer
 
-import com.datastax.driver.core.Cluster
-import com.lambdalab.jgit.cassandra.{CassandraContext, CassandraPacks}
-import org.junit.{Before, Test}
+import com.lambdalab.jgit.cassandra._
 import org.junit.Assert._
+import org.junit.{Before, Test}
 
-class CassandraDaoTest {
+class CassandraDaoTest extends CassandraTestBase {
+
+  lazy val cassandraSettings = cassandraBuilder.settings
 
   val packs= new CassandraPacks with CassandraContext {
-    override val cluster: Cluster = Cluster.builder()
-        .addContactPoint("127.0.0.1")
-        .build()
-    override val keyspace: String = "jgit"
+    override val settings: CassandraSettings = cassandraSettings
+  }
+  val refs = new CassandraRefs with CassandraContext {
+    override val settings: CassandraSettings = cassandraSettings
   }
   val repoName = "test"
 
   @Before
   def setup(): Unit ={
     packs.clear()
+    refs.clear()
   }
 
   @Test
@@ -65,6 +67,22 @@ class CassandraDaoTest {
     assertTrue(packs.commitAll(repoName,Seq(p1.id, p2.id), Seq(p3.id, p4.id)))
     val committed = packs.allCommitted(repoName)
     assertEquals(2 , committed.size)
+  }
 
+  @Test
+  def testRefs(): Unit = {
+    val ref = Ref("HEAD", symbolic = true , target = "refs/head/master", objectId = null)
+    assertTrue(refs.newRef(repoName, ref))
+    assertTrue(refs.all(repoName).contains(ref))
+
+    val wrongOldRef = ref.copy(target = "something else")
+    val newRef =  Ref("HEAD", false , null, "objectId")
+    assertFalse("should not update if oldref conflict", refs.updateRef(repoName, wrongOldRef, newRef))
+    assertTrue("should update if oldref matches", refs.updateRef(repoName, ref, newRef))
+
+
+    assertFalse("should not delete if oldref conflict", refs.delete(repoName, ref))
+    assertTrue(refs.delete(repoName, newRef))
+    assertTrue(refs.all(repoName).isEmpty)
   }
 }

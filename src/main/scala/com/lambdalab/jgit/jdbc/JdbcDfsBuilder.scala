@@ -4,12 +4,6 @@ import com.lambdalab.jgit.jdbc.schema.{MysqlSchemaSupport, PostgresSchemaSupport
 import org.eclipse.jgit.internal.storage.dfs.{DfsRepository, DfsRepositoryBuilder, DfsRepositoryDescription}
 import scalikejdbc.NamedDB
 
-/**
-  * Created by IntelliJ IDEA.
-  * User: draco
-  * Date: 2018/1/12
-  * Time: 下午4:21
-  */
 trait JdbcDfsBuilder {
   self: DfsRepositoryBuilder[_,_] =>
   var dbName: Any = _

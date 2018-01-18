@@ -74,6 +74,7 @@ abstract public class TestRepositoryTest<T extends Repository> {
 
   abstract protected T initRepo();
 
+  @Before
   public void setUp() throws Exception {
     tr = new TestRepository<>(initRepo());
     repo = tr.getRepository();

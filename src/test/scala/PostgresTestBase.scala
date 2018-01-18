@@ -5,12 +5,7 @@ import com.lambdalab.jgit.jdbc.test.DockerTool
 import org.junit.{AfterClass, BeforeClass}
 import scalikejdbc.ConnectionPool
 
-/**
-  * Created by IntelliJ IDEA.
-  * User: draco
-  * Date: 2018/1/14
-  * Time: 下午1:58
-  */
+
 trait PostgresTestBase {
   var dfsRepo: JdbcDfsRepository =_
 

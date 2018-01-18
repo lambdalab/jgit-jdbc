@@ -1,17 +1,24 @@
 package com.lambdalab.jgit.cassandra
 
-import com.datastax.driver.core.{Cluster, PreparedStatement}
+import com.datastax.driver.core.{BoundStatement, Cluster, PreparedStatement}
 import com.lambdalab.jgit.utils.PrepareStatementCache
 
-/**
-  * Created by IntelliJ IDEA.
-  * User: draco
-  * Date: 2018/1/17
-  * Time: 下午3:52
-  */
-trait CassandraContext {
+
+trait CassandraSettings {
   val cluster: Cluster
   val keyspace: String
-  lazy val session = cluster.connect(keyspace)
+}
+
+trait CassandraContext {
+  val settings: CassandraSettings
+  lazy val session = {
+    settings.cluster.connect(settings.keyspace)
+  }
   val statmentCache = new PrepareStatementCache[PreparedStatement](20)
+
+  def execute(cql: String)(bindFunc: PreparedStatement => BoundStatement) = {
+    val stmt = statmentCache.apply(cql)(session.prepare)
+    val bound = bindFunc(stmt)
+    session.execute(bound)
+  }
 }

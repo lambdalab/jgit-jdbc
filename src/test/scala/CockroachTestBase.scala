@@ -3,12 +3,7 @@ package com.lambdalab.jgit.jdbc.test
 import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, PostgresRepoBuilder}
 import scalikejdbc.ConnectionPool
 
-/**
-  * Created by IntelliJ IDEA.
-  * User: draco
-  * Date: 2018/1/14
-  * Time: 下午1:58
-  */
+
 trait CockroachTestBase {
   var dfsRepo: JdbcDfsRepository =_
 
