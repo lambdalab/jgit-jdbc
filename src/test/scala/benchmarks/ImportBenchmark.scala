@@ -11,10 +11,10 @@ class ImportBenchmark {
 
   import ImportBenchmark._
 
-  @Param(Array("SMALL", "MEDIUM"))
+  @Param(Array("MEDIUM"))
   var repo: String = _
 
-  @Param(Array("mem", "file", "mysql", "tidb", "cassandra"))
+  @Param(Array("mem", "mysql", "tidb", "cassandra", "file"))
   var engine: String = _
 
   lazy val localPath = new File("/tmp", repo)
@@ -29,20 +29,19 @@ class ImportBenchmark {
 
   @BeforeExperiment
   def setup(): Unit = {
-    println(s"setup for $engine:$repo")
+    println(s"************\nsetup for $engine:$repo")
     ImportBenchmark.clone(localPath, repoUrl)
+    System.gc()
   }
 
   @Benchmark
   def pushTime(reps: Int): Unit = {
+    println(s"*************\n running $engine:$repo for $reps times")
     Range(0, reps).foreach {
       _ =>
-        try {
-          ImportBenchmark.clear(engine, repo)
-          ImportBenchmark.push(localPath, engine, repo)
-        } catch {
-          case e => e.printStackTrace()
-        }
+        ImportBenchmark.clear(engine, repo)
+        ImportBenchmark.push(localPath, engine, repo)
+
     }
   }
 

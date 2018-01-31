@@ -37,14 +37,22 @@ class CassandraRefDB(repo: CassandraDfsRepo) extends DfsRefDatabase(repo) {
   override def scanAllRefs(): DfsRefDatabase.RefCache = {
     val ids = new RefList.Builder[lib.Ref]
     val sym = new RefList.Builder[lib.Ref]
-    refs.all(repoName).foreach {
+    val all = refs.all(repoName)
+    val idMap = all.filterNot(_.symbolic).map {
       r =>
-        if (r.symbolic) {
-          sym.add(toRef(r))
-        } else {
-          ids.add(toRef(r))
-        }
+        val ref = new ObjectIdRef.PeeledNonTag(lib.Ref.Storage.PACKED, r.name, ObjectId.fromString(r.objectId))
+        ids.add(ref)
+        r.name -> ref
+    }.toMap
+
+    all.filter(_.symbolic).foreach{
+      r=>
+       val ref=  new SymbolicRef(r.name, idMap(r.target))
+        ids.add(ref)
+        sym.add(ref)
     }
+    ids.sort()
+    sym.sort()
     new RefCache(ids.toRefList, sym.toRefList)
   }
 
@@ -52,11 +60,7 @@ class CassandraRefDB(repo: CassandraDfsRepo) extends DfsRefDatabase(repo) {
     refs.delete(repoName, oldRef)
   }
 
-  private def toRef(r: Ref): lib.Ref = if (r.symbolic) {
-    new SymbolicRef(r.name, refs.getByName(repoName, r.name).map(toRef).orNull)
-  } else {
-    new ObjectIdRef.PeeledNonTag(lib.Ref.Storage.PACKED, r.name, ObjectId.fromString(r.objectId))
-  }
+
 
   def clear(): Unit = refs.clear()
 

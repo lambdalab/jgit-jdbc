@@ -33,10 +33,11 @@ class JdbcDfsRefDatabase(repo: JdbcDfsRepository with JdbcSchemaSupport) extends
         r =>
           if (r.symbolic) {
             sym.add(refs.toRef(r))
-          } else {
-            ids.add(refs.toRef(r))
           }
+          ids.add(refs.toRef(r))
       }
+      ids.sort()
+      sym.sort()
       return new RefCache(ids.toRefList, sym.toRefList)
   }
 

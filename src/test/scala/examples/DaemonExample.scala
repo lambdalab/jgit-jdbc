@@ -21,20 +21,20 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
 
   def clearRepo(name: String): Repository = {
 
-      val repo = openRepo(name)
-      repo match {
-        case r: ClearableRepo =>
-          r.clearRepo
-          repo
-        case f: FileRepository =>
-          f.getDirectory.delete()
-          reposCache.invalidate(name)
-          openRepo(name)
-        case _ =>
-          repo.close()
-          reposCache.invalidate(name)
-          openRepo(name)
-      }
+    val repo = openRepo(name)
+    repo match {
+      case r: ClearableRepo =>
+        r.clearRepo
+        repo
+      case f: FileRepository =>
+        f.getDirectory.delete()
+        reposCache.invalidate(name)
+        openRepo(name)
+      case _ =>
+        repo.close()
+        reposCache.invalidate(name)
+        openRepo(name)
+    }
 
   }
 
@@ -53,15 +53,20 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
     val Array(engine, repo) = name.split('/')
     engine match {
       case "cassandra" =>
-        new CassandraRepoBuilder()
+        val r = new CassandraRepoBuilder()
             .setRepoName(repo)
             .setKeyspace("jgit")
             .configCluster(_.addContactPoint("127.0.0.1"))
+            .setBare()
             .build()
+        if(!r.exists())
+          r.create(true)
+        r
       case "mysql" =>
         val r = new MysqlRepoBuilder()
             .setRepoName(repo)
             .setDBName('mysql)
+            .setBare()
             .build()
         if (!r.exists())
           r.create()
@@ -70,6 +75,7 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
         val r = new MysqlRepoBuilder()
             .setRepoName(repo)
             .setDBName('tidb)
+            .setBare()
             .build()
         if (!r.exists())
           r.create()
@@ -78,8 +84,11 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
         val repoDir = new File(repoParent, repo)
         Git.init().setBare(true).setDirectory(repoDir).call().getRepository
       case _ =>
-        new InMemoryRepository.Builder()
+        val r = new InMemoryRepository.Builder()
+            .setBare()
             .build()
+        r.create(true)
+        r
     }
   }
 
