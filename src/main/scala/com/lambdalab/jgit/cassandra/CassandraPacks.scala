@@ -36,7 +36,6 @@ trait CassandraPacks {
                         PRIMARY KEY (repo, id , ext, chunk)
                       );"""
 
-
   def insertNew(repo: String, source: String): Pack = {
     val cql = """insert into packs(repo,id,source,committed) values(?,?,?,false)"""
     val id = UUID.randomUUID()
@@ -56,38 +55,62 @@ trait CassandraPacks {
   def batchDelete(repo: String, deletes: Iterable[UUID]) = {
     val batch = new BatchStatement()
     batch.addAll(deleteStatements(repo, deletes).asJava)
-    session.execute(batch).wasApplied()
-  }
-
-  private def deleteStatements(repo: String, deletes: Iterable[UUID]) = {
-    deletes.flatMap {
-      id =>
-        val stmt = statmentCache.apply("DELETE FROM packs where repo = ? and id = ?")(session.prepare)
-        var chunks = Nil
-        /*val stmt2 = statmentCache.apply(
-          "DELETE FROM packs_data where repo =? and id = ? and ext=? and chunk =?")(session.prepare)
-        val chunks = execute("select ext,chunk from packs_data where repo=? and id =?")(_.bind(repo, id))
-            .all().asScala.map(
-          row =>
-              stmt2.bind(repo,id, row.getString("ext"), Integer.valueOf(row.getInt("chunk")))
-        )*/
-        stmt.bind(repo, id) :: chunks.toList
+    if (session.execute(batch).wasApplied()) {
+      if (deletes.nonEmpty)
+        deleteData(repo, deletes)
+      else
+        false
+    } else {
+      false
     }
   }
 
-  def commitAll(repo:String, commits: Iterable[UUID], deletes: Iterable[UUID]) = {
+  private def deleteStatements(repo: String, deletes: Iterable[UUID]) = {
+    deletes.map {
+      id =>
+        val stmt = statmentCache.apply("DELETE FROM packs where repo = ? and id = ? if exists")(session.prepare)
+        stmt.bind(repo, id)
+    }
+  }
+
+  private def deleteData(repo: String, deletes: Iterable[UUID]) = {
+    val deleteIds = deletes.map(_.toString).mkString(",")
+    val cql =
+      s"""select chunk, ext, id from packs_data where repo = ? and id in
+             ($deleteIds)"""
+
+    val rs = session.execute(session.prepare(cql).bind(repo))
+    val stmt = statmentCache
+        .apply("DELETE FROM packs_data where repo =? and id = ? and ext=? and chunk =?")(session.prepare)
     val batch = new BatchStatement()
-    batch.addAll(deleteStatements(repo,deletes).asJava)
+    rs.all().asScala.foreach {
+      row =>
+        batch.add(
+          stmt.bind(repo, row.getUUID("id"), row.getString("ext"), Integer.valueOf(row.getInt("chunk")))
+        )
+    }
+    session.execute(batch).wasApplied()
+  }
+
+  def commitAll(repo: String, commits: Iterable[UUID], deletes: Iterable[UUID]) = {
+    val batch = new BatchStatement()
+    batch.addAll(deleteStatements(repo, deletes).asJava)
     commits.foreach {
       id =>
         val stmt = statmentCache.apply(
           "UPDATE packs set committed = true where repo = ? and id = ? if exists")(session.prepare)
         batch.add(stmt.bind(repo, id))
     }
-    session.execute(batch).wasApplied()
+    val rs = session.execute(batch)
+    if (rs.wasApplied()) {
+      if (deletes.nonEmpty) {
+        deleteData(repo, deletes)
+      } else
+        true
+    } else {
+      false
+    }
   }
-
-
 
   def readPack(repo: String, id: UUID, ext: String): ReadableChannel = {
     new ChunkedReadableChannel(chunkSize) {
@@ -122,8 +145,6 @@ trait CassandraPacks {
       }
     }
   }
-
-
 
   def clear(): Unit = {
     execute("TRUNCATE packs")(_.bind)
