@@ -19,18 +19,12 @@ class ImportBenchmark {
 
   lazy val localPath = new File("/tmp", repo)
 
-  def repoUrl = {
-    repo match {
-      case "SMALL" => SMALL_REPO_URL
-      case "MEDIUM" => MEDIUM_REPO_URL
-      case "LARGE" => LARGE_REPO_URL
-    }
-  }
+
 
   @BeforeExperiment
   def setup(): Unit = {
     println(s"************\nsetup for $engine:$repo")
-    ImportBenchmark.clone(localPath, repoUrl)
+    ImportBenchmark.cloneRepo(localPath, ImportBenchmark.repoUrl(repo))
     System.gc()
   }
 
@@ -51,8 +45,14 @@ object ImportBenchmark {
   private val SMALL_REPO_URL = "https://github.com/lambdalab/test-repo.git"
   private val MEDIUM_REPO_URL = "https://github.com/lambdalab/javascript-typescript-langserver.git"
   private val LARGE_REPO_URL = "https://github.com/lambdalab/gerrit.git"
-
-  def clone(path: File, remote: String) = {
+  def repoUrl(repo: String) = {
+    repo match {
+      case "SMALL" => SMALL_REPO_URL
+      case "MEDIUM" => MEDIUM_REPO_URL
+      case "LARGE" => LARGE_REPO_URL
+    }
+  }
+  def cloneRepo(path: File, remote: String) = {
     try {
       if (!path.exists()) {
         val result = Git.cloneRepository.setURI(remote).setDirectory(path).call
@@ -83,17 +83,17 @@ object ImportBenchmark {
   }
 
   def main(args: Array[String]): Unit = {
-    DaemonExample.start()
+    /*DaemonExample.start()
     val parent = new File("/tmp")
     val repo = "MEDIUM"
     val localPath = new File(parent, repo)
-    clone(localPath, MEDIUM_REPO_URL)
+    cloneRepo(localPath, MEDIUM_REPO_URL)
     //new TiDBRepoTestBase {}.initJdbc()
     Range(1, 10).foreach { i =>
       println(i)
       clear("mem", repo)
       push(localPath, "mem", repo)
-    }
+    }*/
 
   }
 
