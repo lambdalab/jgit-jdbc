@@ -61,6 +61,11 @@ trait PostgresSchemaSupport extends JdbcSchemaSupport{
       override def commit(): Unit = {
         commitCallback(oid)
       }
+
+      override def close(): Unit = {
+        super.close()
+        conn.close()
+      }
     }
   }
 

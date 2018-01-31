@@ -32,9 +32,14 @@ trait MysqlRepoTestBase {
       )
     )
     DockerTool.tailContainer(container, "ready for connections")
+     initJdbc()
+  }
+
+  def initJdbc() = {
     Class.forName("com.mysql.jdbc.Driver")
     ConnectionPool.add('mysql, url, user, password)
   }
+
   def stop() : Unit = {
     // DockerTool.stopContainer(container)
   }

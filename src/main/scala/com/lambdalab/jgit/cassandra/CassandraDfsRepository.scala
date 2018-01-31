@@ -1,10 +1,11 @@
 package com.lambdalab.jgit.cassandra
 
 import com.datastax.driver.core.Cluster
+import com.lambdalab.jgit.jdbc.ClearableRepo
 import org.eclipse.jgit.internal.storage.dfs.{DfsObjDatabase, DfsRepository, DfsRepositoryBuilder, DfsRepositoryDescription}
 import org.eclipse.jgit.lib.RefDatabase
 
-class CassandraRepoBuilder extends DfsRepositoryBuilder[CassandraRepoBuilder, CassandraDfsRepo] {
+class CassandraRepoBuilder extends DfsRepositoryBuilder[CassandraRepoBuilder, CassandraDfsRepo]  {
   private var ks: String = "jgit"
   def setKeyspace(keyspace: String): this.type = {
     this.ks = keyspace
@@ -32,7 +33,7 @@ class CassandraRepoBuilder extends DfsRepositoryBuilder[CassandraRepoBuilder, Ca
   }
 }
 
-class CassandraDfsRepo(builder: CassandraRepoBuilder) extends DfsRepository(builder){
+class CassandraDfsRepo(builder: CassandraRepoBuilder) extends DfsRepository(builder) with ClearableRepo{
 
   val cassandraSettings = builder.settings
 

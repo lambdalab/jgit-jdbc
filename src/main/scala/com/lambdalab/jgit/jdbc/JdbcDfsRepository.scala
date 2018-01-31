@@ -9,7 +9,7 @@ import org.eclipse.jgit.internal.storage.dfs.{DfsObjDatabase, DfsRepository, Dfs
 import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate}
 
 abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositoryBuilder[_,_], _ <: DfsRepository])
-    extends DfsRepository(builder) with JdbcSchemaSupport {
+    extends DfsRepository(builder) with JdbcSchemaSupport with ClearableRepo{
 
   def tablePrefix = this.getDescription.getRepositoryName
 
@@ -38,7 +38,7 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
   }
 
   def clearRepo(): Unit = {
-    objDatabase.clear()
     refDatabase.clear()
+    objDatabase.clear()
   }
 }

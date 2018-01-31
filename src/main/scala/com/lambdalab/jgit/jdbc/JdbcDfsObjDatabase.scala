@@ -7,7 +7,7 @@ import com.lambdalab.jgit.jdbc.schema.{JdbcSchemaDelegate, JdbcSchemaSupport, Pa
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
 import org.eclipse.jgit.internal.storage.pack.PackExt
-import scalikejdbc.NamedDB
+import scalikejdbc.{ConnectionPool, DB, NamedDB}
 
 import scala.collection.JavaConverters._
 
@@ -41,16 +41,14 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   }
 
   override def writeFile(desc: DfsPackDescription, ext: PackExt): DfsOutputStream = {
-    val conn = db.autoClose(false)
+    val c = ConnectionPool.borrow(db.name)
+    val conn = DB(c)
     conn.begin()
     conn withinTx {
       implicit s =>
         packs.createBlobOutputStream(conn.conn, blob => {
-          try {
             packs.writeData(desc.asInstanceOf[JdbcDfsPackDescription].id, ext.getExtension, blob)
             conn.commit()
-          } finally
-            conn.close()
         })
     }
   }

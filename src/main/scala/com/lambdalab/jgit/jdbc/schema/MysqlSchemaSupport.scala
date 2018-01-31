@@ -24,9 +24,9 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
       s"""CREATE TABLE $packDataTableName (
         `id` int(11) unsigned NOT NULL,
         `ext` varchar(8) NOT NULL DEFAULT '',
-        `data` blob,
+        `data` LONGBLOB,
         PRIMARY KEY (`id`,`ext`),
-        CONSTRAINT `fk_pack_id` FOREIGN KEY (`id`) REFERENCES $packTableName(`id`) ON DELETE CASCADE
+        CONSTRAINT `fk_${tablePrefix}_pack_id` FOREIGN KEY (`id`) REFERENCES $packTableName(`id`) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8;"""
     session.execute(createDataTable)
   }
@@ -47,6 +47,11 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
     val blob = conn.createBlob()
     new BlobDfsOutputStream(blob) {
       override def commit(): Unit = commitCallback(blob)
+
+      override def close(): Unit = {
+        super.close()
+        conn.close()
+      }
     }
   }
   def createBlobFromRs(rs: ResultSet, columnLabel: String): Blob = {

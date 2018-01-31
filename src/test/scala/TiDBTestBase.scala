@@ -29,9 +29,14 @@ trait TiDBRepoTestBase {
       envs = Map()
     )
     DockerTool.tailContainer(container, "Server is running")
+    initJdbc()
+  }
+
+  def initJdbc() = {
     Class.forName("com.mysql.jdbc.Driver")
     ConnectionPool.add('tidb, url, user, password)
   }
+
   def stop() : Unit = {
     // DockerTool.stopContainer(container)
   }
