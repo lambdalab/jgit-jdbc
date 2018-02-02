@@ -17,6 +17,7 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
         `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
          `source` varchar(255) DEFAULT NULL,
          `committed` tinyint(1) NOT NULL DEFAULT '0',
+         `estimated_pack_size` INT(11) UNSIGNED,
         PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8;"""
     session.execute(createTable)

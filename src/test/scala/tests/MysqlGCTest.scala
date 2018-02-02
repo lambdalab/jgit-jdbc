@@ -8,6 +8,8 @@ class MysqlGCTest extends DfsGarbageCollectorTest[JdbcDfsRepository] with MysqlR
   @Before
   def setup(): Unit = {
     super.setUp()
+    if(!dfsRepo.exists())
+      dfsRepo.create()
     dfsRepo.clearRepo()
   }
 }

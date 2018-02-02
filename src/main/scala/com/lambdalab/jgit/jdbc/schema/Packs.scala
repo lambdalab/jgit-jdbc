@@ -1,10 +1,13 @@
 package com.lambdalab.jgit.jdbc.schema
 
-import java.sql.{Blob, ResultSet}
+import java.sql.Blob
 
+import com.lambdalab.jgit.jdbc.JdbcDfsPackDescription
 import scalikejdbc._
 
-case class Pack(id: Long, source: String, committed: Boolean)
+import scala.collection.mutable
+
+case class Pack(id: Long, source: String, committed: Boolean, estimatedPackSize: Int)
 
 trait Packs extends SQLSyntaxSupport[Pack] {
   self: JdbcSchemaSupport =>
@@ -18,10 +21,11 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     val id = withSQL {
       insert.into(this).namedValues(
         this.column.source -> source,
-        this.column.committed -> false
+        this.column.committed -> false,
+        this.column.estimatedPackSize -> 0
       )
     }.updateAndReturnGeneratedKey().apply()
-    Pack(id, source, false)
+    Pack(id, source, false, 0)
   }
 
   def deleteAll(toDelete: Seq[Long])(implicit dBSession: DBSession) = {
@@ -30,12 +34,14 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     }.execute().apply()
   }
 
-  def commitAll(updates: Seq[Pack])(implicit dBSession: DBSession) = {
+  def commitAll(updates: Seq[JdbcDfsPackDescription])(implicit dBSession: DBSession) = {
     updates.foreach { pack =>
+
       withSQL {
         update(this).set(
-          this.column.source -> pack.source,
-          this.column.committed -> true
+          this.column.source -> pack.pack.source,
+          this.column.committed -> true,
+          this.column.estimatedPackSize -> pack.getEstimatedPackSize
         ).where.eq(this.column.id, pack.id)
       }.execute().apply()
     }
@@ -44,7 +50,8 @@ trait Packs extends SQLSyntaxSupport[Pack] {
   def apply(r: ResultName[Pack])(rs: WrappedResultSet): Pack =
     Pack(id = rs.int(r.id),
       source = rs.string(r.source),
-      committed = rs.boolean(r.committed)
+      committed = rs.boolean(r.committed),
+      estimatedPackSize = rs.int(r.estimatedPackSize)
     )
 
   def apply(r: SyntaxProvider[Pack])(rs: WrappedResultSet): Pack = apply(r.resultName)(rs)
@@ -54,6 +61,23 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     withSQL {
       select.from(this as p).where.eq(p.committed, true)
     }.map(this (p)).list().apply()
+  }
+
+  def dataExts(id: Long)(implicit dBSession: DBSession) = {
+    val table = new PackDataTable()
+    val sql =
+      s"""
+          select ext, LENGTH(data) from ${table.tableName} where id = ?
+        """
+    val pstmt = dBSession.connection.prepareStatement(sql)
+    pstmt.setLong(1, id)
+    val rs = pstmt.executeQuery()
+    val result = mutable.Buffer[(String, Int)]()
+    while (rs.next()) {
+      val tuple = rs.getString(1) -> rs.getInt(2)
+      result.append(tuple)
+    }
+    result
   }
 
   def getData(id: Long, ext: String)(implicit dBSession: DBSession) = {
@@ -66,7 +90,7 @@ trait Packs extends SQLSyntaxSupport[Pack] {
 
   def writeData(id: Long, ext: String, blob: Any)(implicit dBSession: DBSession): Unit = {
     val table = new PackDataTable()
-    val sql = self.getUpsertSql(table.tableName, "id,ext,data", "?,?,?" ,"data = ?")
+    val sql = self.getUpsertSql(table.tableName, "id,ext,data", "?,?,?", "data = ?")
     val pstmt = dBSession.connection.prepareStatement(sql)
     pstmt.setLong(1, id)
     pstmt.setString(2, ext)
@@ -78,8 +102,8 @@ trait Packs extends SQLSyntaxSupport[Pack] {
         pstmt.setBlob(3, b)
         pstmt.setBlob(4, b)
       case _ =>
-        pstmt.setObject(3,blob)
-        pstmt.setObject(4,blob)
+        pstmt.setObject(3, blob)
+        pstmt.setObject(4, blob)
     }
     pstmt.executeUpdate()
     pstmt.close()
@@ -99,7 +123,7 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     def apply(r: ResultName[PackData])(rs: WrappedResultSet): PackData = {
       PackData(id = rs.int(r.id),
         ext = rs.string(r.ext),
-        data =  self.createBlobFromRs(rs.underlying, r.data)
+        data = self.createBlobFromRs(rs.underlying, r.data)
       )
     }
 

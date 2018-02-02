@@ -28,30 +28,29 @@ class CassandraObjDB(val repo: CassandraDfsRepo) extends DfsObjDatabase(repo, ne
   }
 
   def toDescription(pack: Pack): DfsPackDescription = {
-    CassandraDfsPackDescription(repo.getDescription, pack)
-  }
-
-  case class CassandraDfsPackDescription(repoDescription: DfsRepositoryDescription, pack: Pack)
-      extends DfsPackDescription(repoDescription, s"pack-${pack.id}-${pack.source}") {
-    val id: UUID = pack.id
-
-    override def getPackSource: DfsObjDatabase.PackSource = {
-      if (super.getPackSource == null) {
-        this.setPackSource(PackSource.valueOf(pack.source))
-      }
-      super.getPackSource
+    val exts = packs.packDataExt(repoName, pack.id)
+    val desc = CassandraDfsPackDescription(repo.getDescription, pack)
+    exts.foreach{
+      case (e,sz) =>
+        val ext = PackExt.newPackExt(e)
+        desc.addFileExt(ext)
+        desc.setFileSize(ext,sz.longValue())
     }
+
+    desc
   }
+
+
 
   override def rollbackPack(desc: util.Collection[DfsPackDescription]): Unit = {
-    packs.batchDelete(repoName, toPackIds(desc))
+    packs.batchDelete(repoName, toPacks(desc))
   }
 
-  private def toPackIds(desc: util.Collection[DfsPackDescription]) = {
+  private def toPacks(desc: util.Collection[DfsPackDescription]) = {
     if(desc ==null)
       Nil
     else {
-      desc.asScala.map(_.asInstanceOf[CassandraDfsPackDescription].id)
+      desc.asScala.map(_.asInstanceOf[CassandraDfsPackDescription])
     }
   }
 
@@ -67,13 +66,24 @@ class CassandraObjDB(val repo: CassandraDfsRepo) extends DfsObjDatabase(repo, ne
 
   override def commitPackImpl(desc: util.Collection[DfsPackDescription],
                               replaces: util.Collection[DfsPackDescription]): Unit = {
-    packs.commitAll(repoName, toPackIds(desc), toPackIds(replaces))
+    packs.commitAll(repoName, toPacks(desc), toPacks(replaces))
   }
 
 
   def clear() = {
     packs.clear()
   }
+}
 
+case class CassandraDfsPackDescription(repoDescription: DfsRepositoryDescription, pack: Pack)
+    extends DfsPackDescription(repoDescription, s"pack-${pack.id}-${pack.source}") {
+  val id: UUID = pack.id
+  setEstimatedPackSize(pack.estimatedPackSize)
 
+  override def getPackSource: DfsObjDatabase.PackSource = {
+    if (super.getPackSource == null) {
+      this.setPackSource(PackSource.valueOf(pack.source))
+    }
+    super.getPackSource
+  }
 }

@@ -11,7 +11,9 @@ class MysqlRepoTest extends  TestRepositoryTest[JdbcDfsRepository] with MysqlRep
   @Before
   def setup(): Unit = {
     super.setUp()
-    dfsRepo.clearRepo()
+    if(!dfsRepo.exists())
+      dfsRepo.create()
+    dfsRepo.clearRepo(false)
   }
 
   @Test

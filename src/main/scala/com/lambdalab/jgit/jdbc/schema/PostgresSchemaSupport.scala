@@ -26,7 +26,8 @@ trait PostgresSchemaSupport extends JdbcSchemaSupport{
       s"""CREATE TABLE IF NOT EXISTS "$packTableName" (
          id SERIAL PRIMARY KEY,
          source varchar(255) DEFAULT NULL,
-         committed boolean NOT NULL DEFAULT false
+         committed boolean NOT NULL DEFAULT false.
+         estimated_pack_size INT(11)
         )"""
     session.execute(createTable)
     val createDataTable =

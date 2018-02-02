@@ -3,6 +3,7 @@ package tests.cassandra
 import java.nio.ByteBuffer
 
 import com.lambdalab.jgit.cassandra._
+import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription
 import org.junit.Assert._
 import org.junit.{Before, Test}
 
@@ -58,13 +59,14 @@ class CassandraDaoTest extends CassandraTestBase {
 
   @Test
   def testPacksBatches(): Unit = {
-    val p1 = packs.insertNew(repoName,"1")
-    val p2 = packs.insertNew(repoName,"2")
-    val p3 = packs.insertNew(repoName,"3")
-    val p4 = packs.insertNew(repoName,"4")
+    val repoDesc=new DfsRepositoryDescription(repoName)
+    val p1 = CassandraDfsPackDescription(repoDesc,packs.insertNew(repoName,"1"))
+    val p2 = CassandraDfsPackDescription(repoDesc,packs.insertNew(repoName,"2"))
+    val p3 = CassandraDfsPackDescription(repoDesc,packs.insertNew(repoName,"3"))
+    val p4 = CassandraDfsPackDescription(repoDesc,packs.insertNew(repoName,"4"))
 
     assertTrue("new pack should not committed yet" , packs.allCommitted(repoName).isEmpty)
-    assertTrue(packs.commitAll(repoName,Seq(p1.id, p2.id), Seq(p3.id, p4.id)))
+    assertTrue(packs.commitAll(repoName,Seq(p1, p2), Seq(p3, p4)))
     val committed = packs.allCommitted(repoName)
     assertEquals(2 , committed.size)
   }

@@ -8,7 +8,7 @@ import org.eclipse.jgit.internal.storage.dfs.{DfsOutputStream, ReadableChannel}
 
 import scala.collection.JavaConverters._
 
-case class Pack(id: UUID, source: String, committed: Boolean)
+case class Pack(id: UUID, source: String, committed: Boolean, estimatedPackSize: Int)
 
 case class PackData(id: UUID, ext: String, blobs: List[ByteBuffer])
 
@@ -23,6 +23,7 @@ trait CassandraPacks {
                         id uuid,
                         source text,
                         committed boolean,
+                        estimated_pack_size int,
                         PRIMARY KEY (repo, id)
                       );"""
   val dataSchema =
@@ -40,20 +41,34 @@ trait CassandraPacks {
     val cql = """insert into packs(repo,id,source,committed) values(?,?,?,false)"""
     val id = UUID.randomUUID()
     if (execute(cql)(_.bind(repo, id, source)).wasApplied()) {
-      Pack(id, source, committed = false)
+      Pack(id, source, committed = false, 0)
     } else {
       null
     }
   }
 
-  def allCommitted(repo: String): Seq[Pack] = {
-    val cql ="""select id,source from packs where repo = ? and committed = true allow filtering"""
-    execute(cql)(_.bind(repo)).all().asScala.map(
-      r => Pack(r.getUUID("id"), r.getString("source"), committed = true))
+  def packDataExt(repo:String, id: UUID) = {
+    val cql =
+      """select ext, max(end) as size  from packs_data where repo = ?
+        and id = ? group by ext"""
+      execute(cql)(_.bind(repo,id)).all().asScala.map{
+        r =>
+          r.getString("ext") -> r.getLong("size")
+      }
   }
 
-  def batchDelete(repo: String, deletes: Iterable[UUID]) = {
+  def allCommitted(repo: String): Seq[Pack] = {
+    val cql ="""select id,source,estimated_pack_size from packs where repo = ? and committed = true allow filtering"""
+    execute(cql)(_.bind(repo)).all().asScala.map(
+      r => Pack(r.getUUID("id"),
+        source = r.getString("source"),
+        committed = true,
+        estimatedPackSize = r.getInt("estimated_pack_size")))
+  }
+
+  def batchDelete(repo: String, packs: Iterable[CassandraDfsPackDescription]) = {
     val batch = new BatchStatement()
+    val deletes = packs.map(_.id)
     batch.addAll(deleteStatements(repo, deletes).asJava)
     if (session.execute(batch).wasApplied()) {
       if (deletes.nonEmpty)
@@ -92,14 +107,17 @@ trait CassandraPacks {
     session.execute(batch).wasApplied()
   }
 
-  def commitAll(repo: String, commits: Iterable[UUID], deletes: Iterable[UUID]) = {
+  def commitAll(repo: String, commits: Iterable[CassandraDfsPackDescription],
+                deletesPacks: Iterable[CassandraDfsPackDescription]) = {
     val batch = new BatchStatement()
+    val deletes = deletesPacks.map(_.id)
     batch.addAll(deleteStatements(repo, deletes).asJava)
     commits.foreach {
-      id =>
+      p =>
         val stmt = statmentCache.apply(
-          "UPDATE packs set committed = true where repo = ? and id = ? if exists")(session.prepare)
-        batch.add(stmt.bind(repo, id))
+          "UPDATE packs set committed = true, estimated_pack_size = ?" +
+              " where repo = ? and id = ? if exists")(session.prepare)
+        batch.add(stmt.bind(Integer.valueOf(p.getEstimatedPackSize.toInt), repo, p.id))
     }
     val rs = session.execute(batch)
     if (rs.wasApplied()) {

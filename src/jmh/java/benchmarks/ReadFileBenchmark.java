@@ -88,7 +88,7 @@ public class ReadFileBenchmark {
 
   public static void main(String[] args) throws IOException {
     ReadFileBenchmark p = new ReadFileBenchmark();
-    p.engine = "cassandra";
+    p.engine = "mysql";
     p.repoName = "MEDIUM";
     p.setup();
     String content = p.readFile();

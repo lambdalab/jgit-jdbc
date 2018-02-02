@@ -7,7 +7,7 @@ import com.lambdalab.jgit.jdbc.schema.{JdbcSchemaDelegate, JdbcSchemaSupport, Pa
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
 import org.eclipse.jgit.internal.storage.pack.PackExt
-import scalikejdbc.{ConnectionPool, DB, NamedDB}
+import scalikejdbc.{ConnectionPool, DB, DBSession, NamedDB}
 
 import scala.collection.JavaConverters._
 
@@ -63,29 +63,38 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
 
   = db localTx {
     implicit s =>
-      packs.commitAll(adds.asScala.map(_.asInstanceOf[JdbcDfsPackDescription].pack).toSeq)
+      packs.commitAll(adds.asScala.map(_.asInstanceOf[JdbcDfsPackDescription]).toSeq)
       if (replaces != null && !replaces.isEmpty)
         packs.deleteAll(replaces.asScala.map(_.asInstanceOf[JdbcDfsPackDescription].id).toSeq)
   }
 
-  def toPackDescription(pack: Pack): DfsPackDescription = {
-    JdbcDfsPackDescription(repo.getDescription, pack)
-  }
-
-  case class JdbcDfsPackDescription(repoDescription: DfsRepositoryDescription, pack: Pack)
-      extends DfsPackDescription(repoDescription, s"pack-${pack.id}-${pack.source}") {
-    val id: Long = pack.id
-
-    override def getPackSource: DfsObjDatabase.PackSource = {
-      if(super.getPackSource==null) {
-        this.setPackSource(PackSource.valueOf(pack.source))
-      }
-      super.getPackSource
+  def toPackDescription(pack: Pack)(implicit dBSession: DBSession): DfsPackDescription = {
+    val exts = packs.dataExts(pack.id)
+    val desc = JdbcDfsPackDescription(repo.getDescription, pack)
+    exts.foreach{
+      case (e,size) =>
+        val ext = PackExt.newPackExt(e)
+        desc.addFileExt(ext)
+        desc.setFileSize(ext,size)
     }
+    desc
   }
 
   def clear() = db localTx {
     implicit s =>
       packs.clearTable()
+  }
+}
+
+case class JdbcDfsPackDescription(repoDescription: DfsRepositoryDescription, pack: Pack)
+    extends DfsPackDescription(repoDescription, s"pack-${pack.id}-${pack.source}") {
+  val id: Long = pack.id
+  setEstimatedPackSize(pack.estimatedPackSize)
+
+  override def getPackSource: DfsObjDatabase.PackSource = {
+    if(super.getPackSource==null) {
+      this.setPackSource(PackSource.valueOf(pack.source))
+    }
+    super.getPackSource
   }
 }
