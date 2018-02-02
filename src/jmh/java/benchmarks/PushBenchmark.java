@@ -7,10 +7,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 10, time = 5, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
 @Fork(1)
 @State(Scope.Benchmark)
 public class PushBenchmark {
@@ -18,7 +18,7 @@ public class PushBenchmark {
   @Param({"SMALL", "MEDIUM"})
   String repoName;
 
-  @Param({"mem", "file", "cassandra", "mysql", "tidb"})
+  @Param({"file", "mem", "cassandra", "mysql", "tidb"})
   String engine;
 
   File getPath() {
@@ -37,6 +37,7 @@ public class PushBenchmark {
   @TearDown
   public void teardown() {
     DaemonExample.stop();
+
   }
 
   @Benchmark
@@ -48,11 +49,12 @@ public class PushBenchmark {
 
   public static void main(String[] args) throws IOException {
     PushBenchmark p = new PushBenchmark();
-    p.engine = "cassandra";
+    p.engine = "file";
     p.repoName = "MEDIUM";
     p.setup();
     p.pushToRepo();
-    //p.teardown();
+    p.pushToRepo();
+    p.teardown();
   }
 
 }

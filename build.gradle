@@ -17,7 +17,7 @@ repositories {
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
-def jgitVersion = '4.8.0.201706111038-r'
+def jgitVersion = '4.10.0.201712302008-r'
 
 sourceSets {
   main {
@@ -66,7 +66,7 @@ jmhReport {
   jmhReportOutput = project.file('build/reports/jmh')
 }
 jmh {
-//  include = ['ChangeRefBenchmark']
+//  include = ['PushBenchmark']
   resultFormat = 'json'
   jvmArgs=['-Xmx2G','-Xms2G']
 }
