@@ -66,5 +66,7 @@ jmhReport {
   jmhReportOutput = project.file('build/reports/jmh')
 }
 jmh {
+//  include = ['ChangeRefBenchmark']
   resultFormat = 'json'
+  jvmArgs=['-Xmx2G','-Xms2G']
 }

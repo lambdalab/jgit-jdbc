@@ -35,6 +35,10 @@ trait PostgresTestBase {
       )
     )
     DockerTool.tailContainer(container, "database system is ready to accept connections")
+    initJdbc()
+  }
+
+  def initJdbc() = {
     Class.forName("org.postgresql.Driver")
     ConnectionPool.add('postgres, url, user, password)
   }

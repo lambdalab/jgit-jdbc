@@ -4,7 +4,7 @@ import org.eclipse.jgit.internal.storage.dfs.DfsRefDatabase.RefCache
 import org.eclipse.jgit.internal.storage.dfs.{DfsRefDatabase, DfsRepository}
 import org.eclipse.jgit.lib
 import org.eclipse.jgit.lib.Ref.Storage
-import org.eclipse.jgit.lib.{ObjectId, ObjectIdRef, Ref, SymbolicRef}
+import org.eclipse.jgit.lib.{ObjectId, ObjectIdRef, Ref => JRef, SymbolicRef}
 import org.eclipse.jgit.util.RefList
 
 class CassandraRefDB(repo: CassandraDfsRepo) extends DfsRefDatabase(repo) {
@@ -45,23 +45,27 @@ class CassandraRefDB(repo: CassandraDfsRepo) extends DfsRefDatabase(repo) {
         r.name -> ref
     }.toMap
 
-    all.filter(_.symbolic).foreach{
-      r=>
-       val ref=  new SymbolicRef(r.name, idMap(r.target))
+    all.filter(_.symbolic).foreach {
+      r =>
+        val ref = idMap.get(r.target).map(tag => new SymbolicRef(r.name, tag)).getOrElse {
+          new ObjectIdRef.Unpeeled(JRef.Storage.NEW, r.target, null)
+        }
         ids.add(ref)
         sym.add(ref)
+
     }
     ids.sort()
     sym.sort()
     new RefCache(ids.toRefList, sym.toRefList)
+
   }
 
   override def compareAndRemove(oldRef: lib.Ref): Boolean = {
     refs.delete(repoName, oldRef)
   }
 
-
-
-  def clear(): Unit = refs.clear()
+  def clear(): Unit = {
+    refs.clear()
+  }
 
 }

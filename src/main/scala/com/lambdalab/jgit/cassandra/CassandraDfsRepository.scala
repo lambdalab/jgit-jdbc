@@ -1,9 +1,11 @@
 package com.lambdalab.jgit.cassandra
 
+import java.io.IOException
+
 import com.datastax.driver.core.Cluster
 import com.lambdalab.jgit.jdbc.ClearableRepo
 import org.eclipse.jgit.internal.storage.dfs.{DfsObjDatabase, DfsRepository, DfsRepositoryBuilder, DfsRepositoryDescription}
-import org.eclipse.jgit.lib.RefDatabase
+import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate}
 
 class CassandraRepoBuilder extends DfsRepositoryBuilder[CassandraRepoBuilder, CassandraDfsRepo]  {
   private var ks: String = "jgit"
@@ -31,6 +33,10 @@ class CassandraRepoBuilder extends DfsRepositoryBuilder[CassandraRepoBuilder, Ca
   override def build() ={
     new CassandraDfsRepo(this)
   }
+  def close(): Unit = {
+    settings.session.close()
+    settings.cluster.close()
+  }
 }
 
 class CassandraDfsRepo(builder: CassandraRepoBuilder) extends DfsRepository(builder) with ClearableRepo{
@@ -44,9 +50,20 @@ class CassandraDfsRepo(builder: CassandraRepoBuilder) extends DfsRepository(buil
 
   override def getRefDatabase: RefDatabase = refDatabase
 
-  def clearRepo(): Unit = {
+  def clearRepo(init:Boolean = true): Unit = {
     objDatabase.clear()
     refDatabase.clear()
+    scanForRepoChanges()
+    if(init)
+      initRepo
   }
 
+  private def initRepo = {
+    val master = Constants.R_HEADS + Constants.MASTER
+    val result = updateRef(Constants.HEAD, true).link(master)
+    result match {
+      case RefUpdate.Result.NEW | RefUpdate.Result.NO_CHANGE =>
+      case _ => throw new IOException(result.name)
+    }
+  }
 }

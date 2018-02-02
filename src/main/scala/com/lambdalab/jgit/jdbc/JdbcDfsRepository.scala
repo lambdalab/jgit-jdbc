@@ -8,8 +8,8 @@ import org.eclipse.jgit.internal.JGitText
 import org.eclipse.jgit.internal.storage.dfs.{DfsObjDatabase, DfsRepository, DfsRepositoryBuilder}
 import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate}
 
-abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositoryBuilder[_,_], _ <: DfsRepository])
-    extends DfsRepository(builder) with JdbcSchemaSupport with ClearableRepo{
+abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositoryBuilder[_, _], _ <: DfsRepository])
+    extends DfsRepository(builder) with JdbcSchemaSupport with ClearableRepo {
 
   def tablePrefix = this.getDescription.getRepositoryName
 
@@ -32,13 +32,24 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
     if (!isTableExists(packTableName)) {
       createPackTable
     }
-    val master = Constants.R_HEADS + Constants.MASTER
-    val result = updateRef(Constants.HEAD, true).link(master)
-    if (result ne RefUpdate.Result.NEW) throw new IOException(result.name)
+    initRepo
   }
 
-  def clearRepo(): Unit = {
+  private def initRepo = {
+    val master = Constants.R_HEADS + Constants.MASTER
+    val result = updateRef(Constants.HEAD, true).link(master)
+    result match {
+      case RefUpdate.Result.NEW | RefUpdate.Result.NO_CHANGE =>
+      case _ => throw new IOException(result.name)
+    }
+  }
+
+  def clearRepo(init: Boolean = true): Unit = {
     refDatabase.clear()
     objDatabase.clear()
+    scanForRepoChanges()
+    if(init) {
+      initRepo
+    }
   }
 }

@@ -4,6 +4,7 @@ import examples.DaemonExample;
 import org.openjdk.jmh.annotations.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.Throughput)
@@ -15,13 +16,13 @@ import java.util.concurrent.TimeUnit;
 public class PushBenchmark {
 
   @Param({"SMALL", "MEDIUM"})
-  String repo;
+  String repoName;
 
-  @Param({"mem", "file", "mysql", "tidb", "cassandra"})
+  @Param({"mem", "file", "cassandra", "mysql", "tidb"})
   String engine;
 
-  File getPath(){
-    return new File("/tmp", repo);
+  File getPath() {
+    return new File("/tmp", repoName);
   }
 
 
@@ -29,19 +30,29 @@ public class PushBenchmark {
   public void setup() {
     InitJdbc.init();
     DaemonExample.start();
-    ImportBenchmark.cloneRepo(getPath(), ImportBenchmark.repoUrl(repo));
+    ImportBenchmark.cloneRepo(getPath(), ImportBenchmark.repoUrl(repoName));
     System.gc();
   }
 
   @TearDown
-  public void teardown(){
+  public void teardown() {
     DaemonExample.stop();
   }
 
   @Benchmark
-  public void  pushToRepo() {
-    ImportBenchmark.clear(engine, repo);
-    ImportBenchmark.push(getPath(), engine, repo);
+  public void pushToRepo() {
+    ImportBenchmark.clear(engine, repoName);
+    ImportBenchmark.push(getPath(), engine, repoName);
+  }
+
+
+  public static void main(String[] args) throws IOException {
+    PushBenchmark p = new PushBenchmark();
+    p.engine = "cassandra";
+    p.repoName = "MEDIUM";
+    p.setup();
+    p.pushToRepo();
+    //p.teardown();
   }
 
 }

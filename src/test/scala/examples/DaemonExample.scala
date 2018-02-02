@@ -3,8 +3,9 @@ package examples
 import java.io.File
 import java.net.InetSocketAddress
 import java.util.concurrent.Callable
+import java.util.function.Consumer
 
-import com.google.common.cache.CacheBuilder
+import com.google.common.cache.{CacheBuilder, RemovalListener, RemovalNotification}
 import com.google.common.io.Files
 import com.lambdalab.jgit.cassandra.CassandraRepoBuilder
 import com.lambdalab.jgit.jdbc.test.{MysqlRepoTestBase, TiDBRepoTestBase}
@@ -24,14 +25,14 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
     val repo = openRepo(name)
     repo match {
       case r: ClearableRepo =>
-        r.clearRepo
+        r.clearRepo()
         repo
       case f: FileRepository =>
         f.getDirectory.delete()
         reposCache.invalidate(name)
         openRepo(name)
       case _ =>
-        repo.close()
+//        repo.close()
         reposCache.invalidate(name)
         openRepo(name)
     }
@@ -41,25 +42,33 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
   val repoParent = Files.createTempDir()
   repoParent.deleteOnExit()
 
-  val reposCache = CacheBuilder.newBuilder().build[String, Repository]()
+  val reposCache = CacheBuilder.newBuilder()
+      .build[String, Repository]()
 
   override def open(req: DaemonClient, name: String): Repository = {
     reposCache.get(name, new Callable[Repository] {
-      override def call(): Repository = openRepo(name)
+      override def call(): Repository = open(name)
+    })
+  }
+  def openRepo(name: String) = {
+    reposCache.get(name, new Callable[Repository] {
+      override def call(): Repository = open(name)
     })
   }
 
-  def openRepo(name: String) = {
+  lazy val cassandraBuilder = new CassandraRepoBuilder()
+      .setKeyspace("jgit")
+      .configCluster(_.addContactPoint("127.0.0.1"))
+
+  def open(name: String, create: Boolean = true) = {
     val Array(engine, repo) = name.split('/')
     engine match {
       case "cassandra" =>
-        val r = new CassandraRepoBuilder()
+        val r = cassandraBuilder
             .setRepoName(repo)
-            .setKeyspace("jgit")
-            .configCluster(_.addContactPoint("127.0.0.1"))
             .setBare()
             .build()
-        if(!r.exists())
+        if(create && !r.exists())
           r.create(true)
         r
       case "mysql" =>
@@ -68,7 +77,7 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
             .setDBName('mysql)
             .setBare()
             .build()
-        if (!r.exists())
+        if (create && !r.exists())
           r.create()
         r
       case "tidb" =>
@@ -77,17 +86,22 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
             .setDBName('tidb)
             .setBare()
             .build()
-        if (!r.exists())
+        if (create && !r.exists())
           r.create()
         r
       case "file" =>
         val repoDir = new File(repoParent, repo)
-        Git.init().setBare(true).setDirectory(repoDir).call().getRepository
+        if(create)
+          Git.init().setBare(true).setDirectory(repoDir).call().getRepository
+        else {
+          Git.open(repoDir).getRepository
+        }
       case _ =>
         val r = new InMemoryRepository.Builder()
             .setBare()
             .build()
-        r.create(true)
+        if(create)
+          r.create(true)
         r
     }
   }
@@ -101,6 +115,9 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
   }
 
   def stop(): Unit = {
+
+    reposCache.invalidateAll()
+//    cassandraBuilder.close()
     server.stop()
   }
 

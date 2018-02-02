@@ -1,5 +1,5 @@
 package com.lambdalab.jgit.jdbc
 
 trait ClearableRepo {
-  def clearRepo: Unit
+  def clearRepo(init: Boolean= true): Unit
 }

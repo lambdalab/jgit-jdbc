@@ -71,7 +71,9 @@ class CassandraObjDB(val repo: CassandraDfsRepo) extends DfsObjDatabase(repo, ne
   }
 
 
-  def clear() = packs.clear()
+  def clear() = {
+    packs.clear()
+  }
 
 
 }

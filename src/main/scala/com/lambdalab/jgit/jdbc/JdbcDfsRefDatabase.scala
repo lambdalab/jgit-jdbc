@@ -29,12 +29,19 @@ class JdbcDfsRefDatabase(repo: JdbcDfsRepository with JdbcSchemaSupport) extends
     implicit s =>
       val ids = new RefList.Builder[Ref]
       val sym = new RefList.Builder[Ref]
-      refs.all.foreach {
+      val refsMap = refs.all.map(r => r.name -> r).toMap
+      refsMap.values.foreach {
         r =>
           if (r.symbolic) {
-            sym.add(refs.toRef(r))
+            val target = refsMap.get(r.target)
+                .map(r =>  new ObjectIdRef.PeeledNonTag(Ref.Storage.PACKED,r.name,ObjectId.fromString(r.objectId)))
+                    .getOrElse(new ObjectIdRef.Unpeeled(Ref.Storage.NEW, r.target, null))
+            val ref = new SymbolicRef(r.name, target)
+            sym.add(ref)
+            ids.add(ref)
+          } else {
+            ids.add(new ObjectIdRef.PeeledNonTag(Ref.Storage.PACKED,r.name,ObjectId.fromString(r.objectId)))
           }
-          ids.add(refs.toRef(r))
       }
       ids.sort()
       sym.sort()

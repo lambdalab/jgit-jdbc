@@ -20,23 +20,6 @@ trait References extends SQLSyntaxSupport[Reference] {
 
   def apply(r: SyntaxProvider[Reference])(rs: WrappedResultSet): Reference = apply(r.resultName)(rs)
 
-  def toRef(r: Reference)(implicit session: DBSession): Ref = if (r.symbolic) {
-    new SymbolicRef(r.name, targetRef(r))
-  } else {
-    new ObjectIdRef.PeeledNonTag(Ref.Storage.PACKED, r.name, ObjectId.fromString(r.objectId))
-  }
-
-  private def targetRef(r: Reference)(implicit session: DBSession): Ref = {
-    getByName(r.target).map(toRef).orNull
-  }
-
-  def getByName(name: String)(implicit session: DBSession) = {
-    val r = this.syntax("r")
-    withSQL {
-      select.from(this as r).where.eq(r.name, name)
-    }.map(this (r)).single().apply()
-  }
-
   def insertRef(newRef: Ref)(implicit session: DBSession) = {
     val name = newRef.getName
     val objectId = Option(newRef.getObjectId).map(_.name())
@@ -55,7 +38,6 @@ trait References extends SQLSyntaxSupport[Reference] {
       'target -> target
     ).update().apply()
   }
-
 
   private def toBinds(ref: Ref) = {
     val (newTarget, newObjId) = if (ref.isSymbolic)
