@@ -1,4 +1,4 @@
-package com.lambdalab.jgit.cassandra
+package com.lambdalab.jgit.streams
 
 import java.nio.ByteBuffer
 
@@ -17,7 +17,7 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStrea
 
   var current = BufHolder(Unpooled.buffer(chunkSize), 0)
 
-  def readFromDB(idx: Int): ByteBuffer
+  def readFromDB(chunk: Int): ByteBuf
 
   override def read(position: Long, buf: ByteBuffer): Int = {
     var read = 0
@@ -25,7 +25,7 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStrea
       val pos = position + read
       if (pos < current.offset) {
         val idx = pos / chunkSize
-        val readBuf = Unpooled.wrappedBuffer(readFromDB(idx.toInt))
+        val readBuf = readFromDB(idx.toInt)
         read += readFrom(buf, readBuf)
       } else if (pos >= current.offset && pos < current.end) {
         read += readFrom(buf, current.buf)

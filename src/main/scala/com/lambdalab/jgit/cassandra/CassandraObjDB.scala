@@ -30,24 +30,22 @@ class CassandraObjDB(val repo: CassandraDfsRepo) extends DfsObjDatabase(repo, ne
   def toDescription(pack: Pack): DfsPackDescription = {
     val exts = packs.packDataExt(repoName, pack.id)
     val desc = CassandraDfsPackDescription(repo.getDescription, pack)
-    exts.foreach{
-      case (e,sz) =>
+    exts.foreach {
+      case (e, sz) =>
         val ext = PackExt.newPackExt(e)
         desc.addFileExt(ext)
-        desc.setFileSize(ext,sz.longValue())
+        desc.setFileSize(ext, sz.longValue())
     }
 
     desc
   }
-
-
 
   override def rollbackPack(desc: util.Collection[DfsPackDescription]): Unit = {
     packs.batchDelete(repoName, toPacks(desc))
   }
 
   private def toPacks(desc: util.Collection[DfsPackDescription]) = {
-    if(desc ==null)
+    if (desc == null)
       Nil
     else {
       desc.asScala.map(_.asInstanceOf[CassandraDfsPackDescription])
@@ -69,9 +67,8 @@ class CassandraObjDB(val repo: CassandraDfsRepo) extends DfsObjDatabase(repo, ne
     packs.commitAll(repoName, toPacks(desc), toPacks(replaces))
   }
 
-
   def clear() = {
-    packs.clear()
+    packs.clear(repoName)
   }
 }
 

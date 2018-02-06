@@ -3,16 +3,18 @@ package com.lambdalab.jgit.jdbc.schema
 import org.eclipse.jgit.lib.{ObjectId, ObjectIdRef, Ref, SymbolicRef}
 import scalikejdbc._
 
-case class Reference(name: String, objectId: String, symbolic: Boolean, target: String)
+case class Reference(repo: String, name: String, objectId: String, symbolic: Boolean, target: String)
 
 trait References extends SQLSyntaxSupport[Reference] {
   self: JdbcSchemaSupport =>
+  val repoName: String
   override val tableName = self.refsTableName
 
   override def connectionPoolName: Any = self.db.name
 
   def apply(r: ResultName[Reference])(rs: WrappedResultSet): Reference =
-    Reference(name = rs.string(r.name),
+    Reference(repo = rs.string(r.repo),
+      name = rs.string(r.name),
       objectId = rs.string(r.objectId),
       symbolic = rs.boolean(r.symbolic),
       target = rs.string(r.target)
@@ -26,12 +28,13 @@ trait References extends SQLSyntaxSupport[Reference] {
     val symbolic = newRef.isSymbolic
     val target = Option(newRef.getTarget).map(_.getName)
     val sql = getUpsertSql(tableName,
-      "name,object_id,symbolic,target",
-      "{name}, {objectId}, {symbolic}, {target}",
+      "repo,name,object_id,symbolic,target",
+      "{repo}, {name}, {objectId}, {symbolic}, {target}",
       "object_id = {objectId},symbolic = {symbolic},target = {target}"
     )
 
     SQL(sql).bindByName(
+      'repo -> repoName,
       'name -> name,
       'objectId -> objectId,
       'symbolic -> symbolic,
@@ -55,7 +58,9 @@ trait References extends SQLSyntaxSupport[Reference] {
     } else {
       None -> Option(ref.getObjectId).map(_.getName)
     }
-    sqls.eq(r.name, ref.getName)
+    sqls.eq(r.repo, this.repoName)
+        .and
+        .eq(r.name, ref.getName)
         .and
         .eq(r.symbolic, ref.isSymbolic)
         .and(sqls.toAndConditionOpt(
@@ -84,11 +89,12 @@ trait References extends SQLSyntaxSupport[Reference] {
   def all(implicit session: DBSession) = {
     val r = this.syntax("r")
     withSQL {
-      select.from(this as r).orderBy(r.name)
+      select.from(this as r).where(sqls.eq(r.repo, repoName)).orderBy(r.name)
     }.map(this (r)).list().apply()
   }
 
   def clearTable()(implicit dBSession: DBSession): Unit = withSQL {
-    delete.from(this)
+    val r = this.syntax("r")
+    delete.from(this).where(sqls.eq(this.column.repo, repoName))
   }.update().apply()
 }

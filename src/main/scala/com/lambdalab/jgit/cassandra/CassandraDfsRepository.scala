@@ -9,15 +9,22 @@ import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate}
 
 class CassandraRepoBuilder extends DfsRepositoryBuilder[CassandraRepoBuilder, CassandraDfsRepo]  {
   private var ks: String = "jgit"
+  private var cluster:Cluster = _
   def setKeyspace(keyspace: String): this.type = {
     this.ks = keyspace
     this
   }
 
-  val clusterBuilder = Cluster.builder()
 
   def configCluster(func: Cluster.Builder => Unit) = {
+    val clusterBuilder = Cluster.builder()
     func(clusterBuilder)
+    setCluster(clusterBuilder.build())
+    this
+  }
+
+  def setCluster(cluster: Cluster) = {
+    this.cluster = cluster
     this
   }
 
@@ -26,7 +33,7 @@ class CassandraRepoBuilder extends DfsRepositoryBuilder[CassandraRepoBuilder, Ca
     this
   }
   lazy val settings:  CassandraSettings = new CassandraSettings {
-    override val cluster: Cluster = clusterBuilder.build()
+    override val cluster: Cluster = CassandraRepoBuilder.this.cluster
     override val keyspace: String = CassandraRepoBuilder.this.ks
   }
 

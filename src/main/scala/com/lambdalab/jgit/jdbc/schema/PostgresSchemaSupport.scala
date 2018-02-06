@@ -2,7 +2,7 @@ package com.lambdalab.jgit.jdbc.schema
 
 import java.sql.{Blob, Connection, ResultSet}
 
-import com.lambdalab.jgit.jdbc.io.LargeObjectDfsOutputStream
+import com.lambdalab.jgit.jdbc.steams.LargeObjectDfsOutputStream
 import org.eclipse.jgit.internal.storage.dfs.DfsOutputStream
 import org.postgresql.PGConnection
 import org.postgresql.largeobject.LargeObjectManager
@@ -12,6 +12,7 @@ trait PostgresSchemaSupport extends JdbcSchemaSupport{
 
   lazy val packTableName = s"${tablePrefix}_packs"
   lazy val packDataTableName = s"${tablePrefix}_packs_data"
+  lazy val packFileTableName = s"`${tablePrefix}_packs_files`"
   lazy val refsTableName = s"${tablePrefix}_refs"
 
   override def isTableExists(tableName: String) = db localTx {

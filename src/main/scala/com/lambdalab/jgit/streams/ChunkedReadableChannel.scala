@@ -1,8 +1,8 @@
-package com.lambdalab.jgit.cassandra
+package com.lambdalab.jgit.streams
 
 import java.nio.ByteBuffer
 
-import io.netty.buffer.{ByteBuf, Unpooled}
+import io.netty.buffer.ByteBuf
 import org.eclipse.jgit.internal.storage.dfs.ReadableChannel
 
 abstract class ChunkedReadableChannel(chunkSize: Int) extends ReadableChannel {
@@ -19,7 +19,7 @@ abstract class ChunkedReadableChannel(chunkSize: Int) extends ReadableChannel {
     pos = newPosition
   }
 
-  def readChunk(chunk: Int): ByteBuffer
+  def readChunk(chunk: Int): ByteBuf
 
   private var currentChunk = -1
   private var currentBuff: ByteBuf = _
@@ -27,7 +27,7 @@ abstract class ChunkedReadableChannel(chunkSize: Int) extends ReadableChannel {
   def getChunkByPos: ByteBuf = {
     val chunk = (pos / chunkSize).toInt
     if (chunk != currentChunk) {
-      currentBuff = Unpooled.wrappedBuffer(readChunk(chunk))
+      currentBuff = readChunk(chunk)
       currentBuff.readerIndex((pos % chunkSize).toInt)
       currentChunk = chunk
     }

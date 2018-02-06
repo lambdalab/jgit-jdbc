@@ -3,7 +3,9 @@ package com.lambdalab.jgit.cassandra
 import java.nio.ByteBuffer
 import java.util.UUID
 
-import com.datastax.driver.core.BatchStatement
+import com.datastax.driver.core.{BatchStatement, Session}
+import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
+import io.netty.buffer.{ByteBuf, Unpooled}
 import org.eclipse.jgit.internal.storage.dfs.{DfsOutputStream, ReadableChannel}
 
 import scala.collection.JavaConverters._
@@ -11,12 +13,7 @@ import scala.collection.JavaConverters._
 case class Pack(id: UUID, source: String, committed: Boolean, estimatedPackSize: Int)
 
 case class PackData(id: UUID, ext: String, blobs: List[ByteBuffer])
-
-trait CassandraPacks {
-  self: CassandraContext =>
-
-  val chunkSize = 1024 * 100
-
+object CassandraPacks {
   val schema =
     """CREATE TABLE packs (
                         repo text,
@@ -37,6 +34,23 @@ trait CassandraPacks {
                         PRIMARY KEY (repo, id , ext, chunk)
                       );"""
 
+  def createSchema(settings: CassandraSettings): Unit = {
+    val ks = settings.cluster.getMetadata.getKeyspace(settings.keyspace)
+    if (ks.getTable("packs") == null) {
+      settings.session.execute(schema)
+    }
+    if (ks.getTable("packs_data") == null) {
+      settings.session.execute(dataSchema)
+    }
+  }
+}
+trait CassandraPacks {
+  self: CassandraContext =>
+
+  val chunkSize = 1024 * 100
+
+
+
   def insertNew(repo: String, source: String): Pack = {
     val cql = """insert into packs(repo,id,source,committed) values(?,?,?,false)"""
     val id = UUID.randomUUID()
@@ -47,14 +61,14 @@ trait CassandraPacks {
     }
   }
 
-  def packDataExt(repo:String, id: UUID) = {
+  def packDataExt(repo: String, id: UUID) = {
     val cql =
       """select ext, max(end) as size  from packs_data where repo = ?
         and id = ? group by ext"""
-      execute(cql)(_.bind(repo,id)).all().asScala.map{
-        r =>
-          r.getString("ext") -> r.getLong("size")
-      }
+    execute(cql)(_.bind(repo, id)).all().asScala.map {
+      r =>
+        r.getString("ext") -> r.getLong("size")
+    }
   }
 
   def allCommitted(repo: String): Seq[Pack] = {
@@ -139,9 +153,11 @@ trait CassandraPacks {
 
       override def size(): Long = _size
 
-      override def readChunk(chunk: Int): ByteBuffer = {
+      override def readChunk(chunk: Int): ByteBuf = {
         val cql = """select data from packs_data where repo = ? and id = ? and ext = ? and chunk = ?"""
-        execute(cql)(_.bind(repo, id, ext, Integer.valueOf(chunk))).one().getBytes(0)
+
+        val bb = execute(cql)(_.bind(repo, id, ext, Integer.valueOf(chunk))).one().getBytes(0)
+        Unpooled.wrappedBuffer(bb)
       }
     }
   }
@@ -156,16 +172,17 @@ trait CassandraPacks {
         execute(cql)(_.bind(buf.nioBuffer(), java.lang.Long.valueOf(h.end), repo, id, ext, Integer.valueOf(chunk)))
       }
 
-      override def readFromDB(chunk: Int): ByteBuffer = {
-        execute("""select data from packs_data where repo = ? and id = ? and ext = ? and chunk = ?""") {
+      override def readFromDB(chunk: Int): ByteBuf = {
+        val bb = execute("""select data from packs_data where repo = ? and id = ? and ext = ? and chunk = ?""") {
           _.bind(repo, id, ext, Integer.valueOf(chunk))
         }.one().getBytes(0)
+        Unpooled.wrappedBuffer(bb)
       }
     }
   }
 
-  def clear(): Unit = {
-    execute("TRUNCATE packs")(_.bind)
-    execute("TRUNCATE packs_data")(_.bind)
+  def clear(repo: String): Unit = {
+    execute("delete from packs where repo = ? ")(_.bind(repo))
+    execute("delete from packs_data where repo = ?")(_.bind(repo))
   }
 }

@@ -9,9 +9,7 @@ import scala.collection.JavaConverters._
 
 case class Ref(name: String, symbolic: Boolean, target: String, objectId: String)
 
-trait CassandraRefs {
-  self: CassandraContext =>
-
+object CassandraRefs {
   val schema =
     """CREATE TABLE refs (
                         repo text,
@@ -22,8 +20,19 @@ trait CassandraRefs {
                         PRIMARY KEY (repo, name)
                       );"""
 
-  def clear(): Unit = {
-    execute("TRUNCATE refs")(_.bind)
+  def createSchema(settings: CassandraSettings): Unit = {
+    val ks = settings.cluster.getMetadata.getKeyspace(settings.keyspace)
+    if (ks.getTable("refs") == null) {
+      settings.session.execute(schema)
+    }
+  }
+}
+
+trait CassandraRefs {
+  self: CassandraContext =>
+
+  def clear(name: String): Unit = {
+    execute("delete from refs where repo = ? ")(_.bind(name))
   }
 
   def newRef(repo: String, ref: Ref): Boolean = {
@@ -61,6 +70,7 @@ trait CassandraRefs {
       target = row.getString("target")
     )
   }
+
   def all(repo: String): Seq[Ref] = {
     execute("select name,symbolic, object_id, target from refs where repo = ?")(_.bind(repo))
         .all().asScala.map(rowToRef)
@@ -77,9 +87,9 @@ trait CassandraRefs {
     }
   }
 
-  def getByName(repo:String , name: String) : Option[Ref] = {
+  def getByName(repo: String, name: String): Option[Ref] = {
     val row = execute("select name,symbolic, object_id, target from refs where repo = ? and name  =? ")(
-          _.bind(repo,name)).one()
+      _.bind(repo, name)).one()
 
     Option(row).map(rowToRef)
   }

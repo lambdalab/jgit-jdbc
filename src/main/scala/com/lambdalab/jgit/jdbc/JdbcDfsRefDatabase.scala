@@ -12,6 +12,7 @@ class JdbcDfsRefDatabase(repo: JdbcDfsRepository with JdbcSchemaSupport) extends
    def db: NamedDB = repo.db
   val refs = new References  with JdbcSchemaDelegate {
     override def delegate = repo
+    override val repoName = repo.getDescription.getRepositoryName
   }
   override def compareAndPut(oldRef: Ref, newRef: Ref): Boolean = db localTx {
     implicit s =>

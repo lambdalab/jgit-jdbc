@@ -20,6 +20,8 @@ trait JdbcSchemaSupport {
 
   def packDataTableName: String
 
+  def packFileTableName: String
+
   def refsTableName: String
 
   def createBlobOutputStream(conn: Connection, commitCallback: (Any) => Unit): DfsOutputStream
@@ -46,6 +48,9 @@ trait JdbcSchemaDelegate extends JdbcSchemaSupport {
   def packTableName: String = delegate.packTableName
 
   def packDataTableName: String = delegate.packDataTableName
+
+  def packFileTableName: String = delegate.packFileTableName
+
 
   def refsTableName: String = delegate.refsTableName
 

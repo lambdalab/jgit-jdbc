@@ -11,7 +11,8 @@ import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate}
 abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositoryBuilder[_, _], _ <: DfsRepository])
     extends DfsRepository(builder) with JdbcSchemaSupport with ClearableRepo {
 
-  def tablePrefix = this.getDescription.getRepositoryName
+  private val repoName = this.getDescription.getRepositoryName
+  def tablePrefix = "t"
 
   private val objDatabase = new JdbcDfsObjDatabase(this)
   private val refDatabase = new JdbcDfsRefDatabase(this)

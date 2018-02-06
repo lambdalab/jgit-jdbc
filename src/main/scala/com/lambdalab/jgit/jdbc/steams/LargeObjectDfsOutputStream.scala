@@ -1,4 +1,4 @@
-package com.lambdalab.jgit.jdbc.io
+package com.lambdalab.jgit.jdbc.steams
 
 import java.nio.ByteBuffer
 

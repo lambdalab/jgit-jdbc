@@ -17,12 +17,11 @@ class CassandraDaoTest extends CassandraTestBase {
   val refs = new CassandraRefs with CassandraContext {
     override val settings: CassandraSettings = cassandraSettings
   }
-  val repoName = "test"
 
   @Before
   def setup(): Unit ={
-    packs.clear()
-    refs.clear()
+    packs.clear(repoName)
+    refs.clear(repoName)
   }
 
   @Test

@@ -1,36 +1,39 @@
 package com.lambdalab.jgit.jdbc.schema
 
 import java.sql.Blob
+import java.util.UUID
 
 import com.lambdalab.jgit.jdbc.JdbcDfsPackDescription
+import io.netty.buffer.{ByteBuf, Unpooled}
 import scalikejdbc._
 
-import scala.collection.mutable
-
-case class Pack(id: Long, source: String, committed: Boolean, estimatedPackSize: Int)
+case class Pack(repo:String , id: String, source: String, committed: Boolean, estimatedPackSize: Int)
 
 trait Packs extends SQLSyntaxSupport[Pack] {
   self: JdbcSchemaSupport =>
-
+  val repoName: String
   override lazy val tableName = self.packTableName
 
   override def connectionPoolName: Any = self.db.name
 
   def insertNew(source: String)(implicit dBSession: DBSession) = {
     val p = this.syntax("p")
-    val id = withSQL {
+    val id = UUID.randomUUID().toString
+    withSQL {
       insert.into(this).namedValues(
+        this.column.repo -> repoName,
+        this.column.id -> id,
         this.column.source -> source,
         this.column.committed -> false,
         this.column.estimatedPackSize -> 0
       )
-    }.updateAndReturnGeneratedKey().apply()
-    Pack(id, source, false, 0)
+    }.update().apply()
+    Pack(repoName,id, source, committed = false, 0)
   }
 
-  def deleteAll(toDelete: Seq[Long])(implicit dBSession: DBSession) = {
+  def deleteAll(toDelete: Seq[String])(implicit dBSession: DBSession) = {
     withSQL {
-      delete.from(this).where.in(this.column.id, toDelete)
+      delete.from(this).where.eq(this.column.repo, repoName).and.in(this.column.id, toDelete)
     }.execute().apply()
   }
 
@@ -42,13 +45,14 @@ trait Packs extends SQLSyntaxSupport[Pack] {
           this.column.source -> pack.pack.source,
           this.column.committed -> true,
           this.column.estimatedPackSize -> pack.getEstimatedPackSize
-        ).where.eq(this.column.id, pack.id)
+        ).where.eq(this.column.repo, repoName).and.eq(this.column.id, pack.id)
       }.execute().apply()
     }
   }
 
   def apply(r: ResultName[Pack])(rs: WrappedResultSet): Pack =
-    Pack(id = rs.int(r.id),
+    Pack(repo = repoName,
+      id = rs.string(r.id),
       source = rs.string(r.source),
       committed = rs.boolean(r.committed),
       estimatedPackSize = rs.int(r.estimatedPackSize)
@@ -59,52 +63,45 @@ trait Packs extends SQLSyntaxSupport[Pack] {
   def all(implicit dBSession: DBSession) = {
     val p = this.syntax("p")
     withSQL {
-      select.from(this as p).where.eq(p.committed, true)
+      select.from(this as p).where.eq(p.repo, repoName).and.eq(p.committed, true)
     }.map(this (p)).list().apply()
   }
 
-  def dataExts(id: Long)(implicit dBSession: DBSession) = {
-    val table = new PackDataTable()
-    val sql =
-      s"""
-          select ext, LENGTH(data) from ${table.tableName} where id = ?
-        """
-    val pstmt = dBSession.connection.prepareStatement(sql)
-    pstmt.setLong(1, id)
-    val rs = pstmt.executeQuery()
-    val result = mutable.Buffer[(String, Int)]()
-    while (rs.next()) {
-      val tuple = rs.getString(1) -> rs.getInt(2)
-      result.append(tuple)
-    }
-    result
+  def dataExts(id: String)(implicit dBSession: DBSession) = {
+    val table = new PackFileTable()
+    val p = table.syntax("p")
+
+    val results = withSQL{
+      select.from(table as p).where.eq(p.repo, repoName).and.eq(p.id , id)
+    }.map(table(p)).list().apply()
+     results
   }
 
-  def getData(id: Long, ext: String)(implicit dBSession: DBSession) = {
-    val table = new PackDataTable()
+  def getFile(id:String, ext:String)(implicit dBSession: DBSession) = {
+    val table = new PackFileTable()
     val p = table.syntax("p")
-    withSQL {
-      select.from(table as p).where.eq(p.id, id).and.eq(p.ext, ext)
+     withSQL{
+      select.from(table as p).where.eq(p.repo, repoName).and.eq(p.id , id).and.eq(p.ext , ext)
     }.map(table(p)).single().apply()
   }
 
-  def writeData(id: Long, ext: String, blob: Any)(implicit dBSession: DBSession): Unit = {
+  def getData(id: String, ext: String, chunk: Int)(implicit dBSession: DBSession) = {
+    val data = new PackDataTable()
+    val p = data.syntax("p")
+    withSQL {
+      select.from(data as p).where.eq(p.id, id).and.eq(p.ext, ext).and.eq(p.chunk, chunk)
+    }.map(data(p)).single().apply()
+  }
+
+  def writeData(id: String, ext: String, chunk: Int, blob: Array[Byte])(implicit dBSession: DBSession): Unit = {
     val table = new PackDataTable()
-    val sql = self.getUpsertSql(table.tableName, "id,ext,data", "?,?,?", "data = ?")
+    val sql = self.getUpsertSql(table.tableName, "id,ext,chunk,data", "?,?,?,?", "chunk=?,data = ?")
     val pstmt = dBSession.connection.prepareStatement(sql)
-    pstmt.setLong(1, id)
+    pstmt.setString(1, id)
     pstmt.setString(2, ext)
-    blob match {
-      case l: Long =>
-        pstmt.setLong(3, l)
-        pstmt.setLong(4, l)
-      case b: Blob =>
-        pstmt.setBlob(3, b)
-        pstmt.setBlob(4, b)
-      case _ =>
-        pstmt.setObject(3, blob)
-        pstmt.setObject(4, blob)
-    }
+    pstmt.setInt(3, chunk)
+    pstmt.setBytes(4, blob)
+    pstmt.setBytes(5, blob)
     pstmt.executeUpdate()
     pstmt.close()
   }
@@ -113,7 +110,30 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     delete.from(this)
   }.update().apply()
 
-  case class PackData(id: Long, ext: String, data: Blob)
+  case class PackData(id: String, ext: String,chunk: Int, data: Blob) {
+    lazy val buf: ByteBuf = {
+      val bytes = data.getBytes(0, data.length().toInt)
+      data.free()
+      Unpooled.wrappedBuffer(bytes)
+    }
+  }
+
+  case class PackFile(id: String, ext: String, size: Int)
+
+  class PackFileTable extends SQLSyntaxSupport[PackFile] {
+    override lazy val tableName = self.packFileTableName
+
+    override def connectionPoolName: Any = db.name
+
+    def apply(r: ResultName[PackFile])(rs: WrappedResultSet): PackFile = {
+      PackFile(id = rs.string(r.id),
+        ext = rs.string(r.ext),
+        size = rs.int(r.size)
+      )
+    }
+
+    def apply(r: SyntaxProvider[PackFile])(rs: WrappedResultSet): PackFile = apply(r.resultName)(rs)
+  }
 
   class PackDataTable extends SQLSyntaxSupport[PackData] {
     override lazy val tableName = self.packDataTableName
@@ -121,8 +141,9 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     override def connectionPoolName: Any = db.name
 
     def apply(r: ResultName[PackData])(rs: WrappedResultSet): PackData = {
-      PackData(id = rs.int(r.id),
+      PackData(id = rs.string(r.id),
         ext = rs.string(r.ext),
+        chunk = rs.int(r.chunk),
         data = self.createBlobFromRs(rs.underlying, r.data)
       )
     }

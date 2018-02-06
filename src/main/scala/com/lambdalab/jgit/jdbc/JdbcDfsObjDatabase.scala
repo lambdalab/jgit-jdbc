@@ -1,13 +1,15 @@
 package com.lambdalab.jgit.jdbc
 
+import java.nio.ByteBuffer
 import java.util
 
-import com.lambdalab.jgit.jdbc.io.{BlobDfsOutputStream, BlobReadableChannel, EmptyReadableChannel}
 import com.lambdalab.jgit.jdbc.schema.{JdbcSchemaDelegate, JdbcSchemaSupport, Pack, Packs}
+import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
 import org.eclipse.jgit.internal.storage.pack.PackExt
 import scalikejdbc.{ConnectionPool, DB, DBSession, NamedDB}
+import io.netty.buffer.{ByteBuf, EmptyByteBuf, Unpooled}
 
 import scala.collection.JavaConverters._
 
@@ -18,15 +20,31 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
 
   val packs = new Packs with JdbcSchemaDelegate {
     override def delegate = repo
+
+    override val repoName = repo.getDescription.getRepositoryName
   }
 
-  override def openFile(desc: DfsPackDescription, ext: PackExt): ReadableChannel = {
+  val chunkSize = 1024 * 1024 // 1M Chunk Size
+
+  override def openFile(desc: DfsPackDescription, packExt: PackExt): ReadableChannel = {
     val conn = db.autoClose(false)
+    val id = desc.asInstanceOf[JdbcDfsPackDescription].id
+    val ext = packExt.getExtension
     conn.begin()
-    conn withinTx  {
+    conn withinTx {
       implicit s =>
-        packs.getData(desc.asInstanceOf[JdbcDfsPackDescription].id, ext.getExtension)
-            .map(d => new BlobReadableChannel(d.data, conn)).getOrElse(EmptyReadableChannel)
+        new ChunkedReadableChannel(chunkSize) {
+          override def readChunk(chunk: Int): ByteBuf = {
+            val chunk = packs.getData(id, ext, chunk)
+            chunk.map(_.buf).getOrElse(EmptyByteBuf)
+          }
+
+          lazy val _size = {
+            packs.getFile(id, ext).map(_.size).getOrElse(0)
+          }
+
+          override def size(): Long = _size
+        }
     }
   }
 
@@ -40,16 +58,23 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
       packs.deleteAll(desc.asScala.map(_.asInstanceOf[JdbcDfsPackDescription].id).toSeq)
   }
 
-  override def writeFile(desc: DfsPackDescription, ext: PackExt): DfsOutputStream = {
+  override def writeFile(desc: DfsPackDescription, packExt: PackExt): DfsOutputStream = {
     val c = ConnectionPool.borrow(db.name)
     val conn = DB(c)
+    val id = desc.asInstanceOf[JdbcDfsPackDescription].id
+    val ext = packExt.getExtension
     conn.begin()
     conn withinTx {
       implicit s =>
-        packs.createBlobOutputStream(conn.conn, blob => {
-            packs.writeData(desc.asInstanceOf[JdbcDfsPackDescription].id, ext.getExtension, blob)
-            conn.commit()
-        })
+        new ChunkedDfsOutputStream(chunkSize) {
+          override def readFromDB(chunk: Int): ByteBuf = {
+            packs.getData(id, ext, chunk).map(_.buf).getOrElse(EmptyByteBuf)
+          }
+
+          override def flushBuffer(current: BufHolder): Unit = {
+            packs.writeData(id, ext, current.chunk, current.buf.array())
+          }
+        }
     }
   }
 
@@ -71,11 +96,11 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   def toPackDescription(pack: Pack)(implicit dBSession: DBSession): DfsPackDescription = {
     val exts = packs.dataExts(pack.id)
     val desc = JdbcDfsPackDescription(repo.getDescription, pack)
-    exts.foreach{
-      case (e,size) =>
-        val ext = PackExt.newPackExt(e)
+    exts.foreach {
+      f =>
+        val ext = PackExt.newPackExt(f.ext)
         desc.addFileExt(ext)
-        desc.setFileSize(ext,size)
+        desc.setFileSize(ext, f.size)
     }
     desc
   }
@@ -88,11 +113,11 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
 
 case class JdbcDfsPackDescription(repoDescription: DfsRepositoryDescription, pack: Pack)
     extends DfsPackDescription(repoDescription, s"pack-${pack.id}-${pack.source}") {
-  val id: Long = pack.id
+  val id: String = pack.id
   setEstimatedPackSize(pack.estimatedPackSize)
 
   override def getPackSource: DfsObjDatabase.PackSource = {
-    if(super.getPackSource==null) {
+    if (super.getPackSource == null) {
       this.setPackSource(PackSource.valueOf(pack.source))
     }
     super.getPackSource

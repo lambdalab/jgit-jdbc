@@ -65,7 +65,7 @@ class CassandraRefDB(repo: CassandraDfsRepo) extends DfsRefDatabase(repo) {
   }
 
   def clear(): Unit = {
-    refs.clear()
+    refs.clear(repoName)
   }
 
 }

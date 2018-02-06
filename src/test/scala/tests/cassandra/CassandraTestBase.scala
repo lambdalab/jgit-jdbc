@@ -7,9 +7,11 @@ trait CassandraTestBase {
   var dfsRepo: CassandraDfsRepo = _
   val keyspace = "jgit"
 
+  val repoName = "test"
+
   val cassandraBuilder = {
     new CassandraRepoBuilder()
-        .setRepoName("test")
+        .setRepoName(repoName)
         .setKeyspace(keyspace)
         .configCluster(_.addContactPoint("127.0.0.1"))
   }
