@@ -18,11 +18,11 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 10, time = 5, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
 @Fork(1)
 @State(Scope.Benchmark)
 public class ReadFileBenchmark {
-  @Param({"cassandra","tidb","mysql","file","mem"})
+  @Param({"file", "cassandra", "postgres","tidb","mysql","mem"})
   String engine;
 
   @Param({"MEDIUM"})

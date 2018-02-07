@@ -1,15 +1,16 @@
 package com.lambdalab.jgit.jdbc
 
-import java.nio.ByteBuffer
+import java.io.InputStream
+import java.sql.Blob
 import java.util
 
 import com.lambdalab.jgit.jdbc.schema.{JdbcSchemaDelegate, JdbcSchemaSupport, Pack, Packs}
-import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
+import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel, EmptyReadableChannel}
+import io.netty.buffer.{ByteBuf, Unpooled}
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
 import org.eclipse.jgit.internal.storage.pack.PackExt
-import scalikejdbc.{ConnectionPool, DB, DBSession, NamedDB}
-import io.netty.buffer.{ByteBuf, EmptyByteBuf, Unpooled}
+import scalikejdbc.{DBSession, NamedDB}
 
 import scala.collection.JavaConverters._
 
@@ -24,28 +25,32 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
     override val repoName = repo.getDescription.getRepositoryName
   }
 
-  val chunkSize = 1024 * 1024 // 1M Chunk Size
+  val chunkSize = 512 * 1024 // 512K Chunk Size
 
   override def openFile(desc: DfsPackDescription, packExt: PackExt): ReadableChannel = {
-    val conn = db.autoClose(false)
     val id = desc.asInstanceOf[JdbcDfsPackDescription].id
     val ext = packExt.getExtension
-    conn.begin()
-    conn withinTx {
+    val fileOption = db readOnly {
       implicit s =>
-        new ChunkedReadableChannel(chunkSize) {
-          override def readChunk(chunk: Int): ByteBuf = {
-            val chunk = packs.getData(id, ext, chunk)
-            chunk.map(_.buf).getOrElse(EmptyByteBuf)
-          }
-
-          lazy val _size = {
-            packs.getFile(id, ext).map(_.size).getOrElse(0)
-          }
-
-          override def size(): Long = _size
-        }
+        packs.getFile(id, ext)
     }
+    fileOption.map {
+      f =>
+        new ChunkedReadableChannel(chunkSize) {
+          override def readChunk(chunk: Int): ByteBuf = db readOnly { implicit s =>
+              val data = packs.getData(id, ext, chunk)
+              data.map(p => readStream(p.data)).getOrElse(Unpooled.EMPTY_BUFFER)
+          }
+          override def size(): Long = f.size
+        }
+    }.getOrElse(EmptyReadableChannel)
+  }
+
+  private def readStream(is: InputStream) = {
+    val buf = Unpooled.buffer()
+    buf.writeBytes(is, chunkSize)
+    is.close()
+    buf
   }
 
   override def listPacks(): util.List[DfsPackDescription] = db localTx {
@@ -59,22 +64,29 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   }
 
   override def writeFile(desc: DfsPackDescription, packExt: PackExt): DfsOutputStream = {
-    val c = ConnectionPool.borrow(db.name)
-    val conn = DB(c)
+
     val id = desc.asInstanceOf[JdbcDfsPackDescription].id
     val ext = packExt.getExtension
-    conn.begin()
-    conn withinTx {
-      implicit s =>
-        new ChunkedDfsOutputStream(chunkSize) {
-          override def readFromDB(chunk: Int): ByteBuf = {
-            packs.getData(id, ext, chunk).map(_.buf).getOrElse(EmptyByteBuf)
-          }
 
-          override def flushBuffer(current: BufHolder): Unit = {
-            packs.writeData(id, ext, current.chunk, current.buf.array())
-          }
+    db localTx {
+      implicit s =>
+        packs.initFile(id, ext)
+    }
+    new ChunkedDfsOutputStream(chunkSize) {
+      override def readFromDB(chunk: Int): ByteBuf = {
+        db readOnly {
+          implicit s =>
+            packs.getData(id, ext, chunk).map(p => readStream(p.data)).getOrElse(Unpooled.EMPTY_BUFFER)
         }
+      }
+
+      override def flushBuffer(current: BufHolder): Unit = {
+        db localTx {
+          implicit s =>
+            packs.writeData(id, ext, current.chunk, current.buf)
+            packs.updateFileSize(id, ext, current.end)
+        }
+      }
     }
   }
 
@@ -84,9 +96,7 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   }
 
   override def commitPackImpl(adds: util.Collection[DfsPackDescription],
-                              replaces: util.Collection[DfsPackDescription]): Unit
-
-  = db localTx {
+                              replaces: util.Collection[DfsPackDescription]): Unit = db localTx {
     implicit s =>
       packs.commitAll(adds.asScala.map(_.asInstanceOf[JdbcDfsPackDescription]).toSeq)
       if (replaces != null && !replaces.isEmpty)
@@ -94,7 +104,7 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   }
 
   def toPackDescription(pack: Pack)(implicit dBSession: DBSession): DfsPackDescription = {
-    val exts = packs.dataExts(pack.id)
+    val exts = packs.getFiles(pack.id)
     val desc = JdbcDfsPackDescription(repo.getDescription, pack)
     exts.foreach {
       f =>

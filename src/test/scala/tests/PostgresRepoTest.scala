@@ -9,9 +9,9 @@ class PostgresRepoTest extends  TestRepositoryTest[JdbcDfsRepository] with Postg
   @Before
   def setup(): Unit = {
     super.setUp()
-   /* if(!dfsRepo.exists())
-      dfsRepo.create()*/
-    dfsRepo.clearRepo()
+    if(!dfsRepo.exists())
+      dfsRepo.create()
+    dfsRepo.clearRepo(false)
   }
 
  /* @Test

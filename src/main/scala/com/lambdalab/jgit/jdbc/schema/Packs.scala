@@ -1,13 +1,14 @@
 package com.lambdalab.jgit.jdbc.schema
 
+import java.io.InputStream
 import java.sql.Blob
 import java.util.UUID
 
 import com.lambdalab.jgit.jdbc.JdbcDfsPackDescription
-import io.netty.buffer.{ByteBuf, Unpooled}
+import io.netty.buffer.{ByteBuf, ByteBufInputStream, Unpooled}
 import scalikejdbc._
 
-case class Pack(repo:String , id: String, source: String, committed: Boolean, estimatedPackSize: Int)
+case class Pack(repo: String, id: String, source: String, committed: Boolean, estimatedPackSize: Int)
 
 trait Packs extends SQLSyntaxSupport[Pack] {
   self: JdbcSchemaSupport =>
@@ -28,7 +29,7 @@ trait Packs extends SQLSyntaxSupport[Pack] {
         this.column.estimatedPackSize -> 0
       )
     }.update().apply()
-    Pack(repoName,id, source, committed = false, 0)
+    Pack(repoName, id, source, committed = false, 0)
   }
 
   def deleteAll(toDelete: Seq[String])(implicit dBSession: DBSession) = {
@@ -67,56 +68,103 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     }.map(this (p)).list().apply()
   }
 
-  def dataExts(id: String)(implicit dBSession: DBSession) = {
+  def getFiles(id: String)(implicit dBSession: DBSession) = {
     val table = new PackFileTable()
     val p = table.syntax("p")
 
-    val results = withSQL{
-      select.from(table as p).where.eq(p.repo, repoName).and.eq(p.id , id)
+    val results = withSQL {
+      select.from(table as p).where.eq(p.id, id)
     }.map(table(p)).list().apply()
-     results
+    results
   }
 
-  def getFile(id:String, ext:String)(implicit dBSession: DBSession) = {
+  def getFile(id: String, ext: String)(implicit dBSession: DBSession) = {
     val table = new PackFileTable()
     val p = table.syntax("p")
-     withSQL{
-      select.from(table as p).where.eq(p.repo, repoName).and.eq(p.id , id).and.eq(p.ext , ext)
+    withSQL {
+      select.from(table as p).where.eq(p.id, id).and.eq(p.ext, ext)
     }.map(table(p)).single().apply()
   }
 
   def getData(id: String, ext: String, chunk: Int)(implicit dBSession: DBSession) = {
-    val data = new PackDataTable()
-    val p = data.syntax("p")
+    val table = new PackDataTable()
+    val p = table.syntax("p")
     withSQL {
-      select.from(data as p).where.eq(p.id, id).and.eq(p.ext, ext).and.eq(p.chunk, chunk)
-    }.map(data(p)).single().apply()
+      select.from(table as p).where.eq(p.id, id).and.eq(p.ext, ext).and.eq(p.chunk, chunk)
+    }.map(table(p)).single().apply()
   }
 
-  def writeData(id: String, ext: String, chunk: Int, blob: Array[Byte])(implicit dBSession: DBSession): Unit = {
+  def writeData(id: String, ext: String, chunk: Int, data: ByteBuf)(implicit dBSession: DBSession): Unit = {
     val table = new PackDataTable()
-    val sql = self.getUpsertSql(table.tableName, "id,ext,chunk,data", "?,?,?,?", "chunk=?,data = ?")
+    val d = table.syntax("d")
+    val exists = withSQL {
+      select(d.id).from(table as d).where.eq(d.id, id).and.eq(d.ext, ext).and.eq(d.chunk, chunk)
+    }.map(_.string(1)).single().apply().isDefined
+    val is: InputStream = new ByteBufInputStream(data)
+
+    if (exists) {
+      if (data.readableBytes() > 0) {
+        val sql =
+          s"""
+            update ${table.tableName} set data = $concatExpress
+             where id = ? and ext = ? and chunk = ?
+          """
+        val pstmt = dBSession.connection.prepareStatement(sql)
+        pstmt.setBinaryStream(1, is)
+        pstmt.setString(2, id)
+        pstmt.setString(3, ext)
+        pstmt.setInt(4, chunk)
+        pstmt.executeUpdate()
+        pstmt.close()
+      }
+    } else {
+      withSQL {
+        insert.into(table).namedValues(
+          table.column.id -> id,
+          table.column.ext -> ext,
+          table.column.chunk -> chunk,
+          table.column.data -> is
+        )
+      }.executeUpdate().apply()
+    }
+
+    /*val sql = self.getUpsertSql(table.tableName, "id,ext,chunk,data", "?,?,?,?", "chunk=?,data = concat(data,?)")
     val pstmt = dBSession.connection.prepareStatement(sql)
+    val is = new ByteBufInputStream(data)
     pstmt.setString(1, id)
     pstmt.setString(2, ext)
     pstmt.setInt(3, chunk)
-    pstmt.setBytes(4, blob)
-    pstmt.setBytes(5, blob)
+    pstmt.setBinaryStream(4, is)
+    pstmt.setInt(5, chunk)
+    pstmt.setBinaryStream(6, is)
     pstmt.executeUpdate()
     pstmt.close()
+    is.close()*/
+  }
+
+  def initFile(id: String, ext: String)(implicit dBSession: DBSession): Unit = {
+    val table = new PackFileTable()
+    withSQL {
+      insert.into(table).namedValues(
+        table.column.id -> id,
+        table.column.ext -> ext
+      )
+    }.executeUpdate().apply()
+  }
+
+  def updateFileSize(id: String, ext: String, size: Long)(implicit dBSession: DBSession): Unit = {
+    val table = new PackFileTable()
+    withSQL {
+      update(table).set(table.column.size -> size).where
+          .eq(table.column.id, id).and.eq(table.column.ext, ext).and.le(table.column.size, size)
+    }.executeUpdate().apply()
   }
 
   def clearTable()(implicit dBSession: DBSession): Unit = withSQL {
     delete.from(this)
   }.update().apply()
 
-  case class PackData(id: String, ext: String,chunk: Int, data: Blob) {
-    lazy val buf: ByteBuf = {
-      val bytes = data.getBytes(0, data.length().toInt)
-      data.free()
-      Unpooled.wrappedBuffer(bytes)
-    }
-  }
+  case class PackData(id: String, ext: String, chunk: Int, data: InputStream)
 
   case class PackFile(id: String, ext: String, size: Int)
 
@@ -126,7 +174,8 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     override def connectionPoolName: Any = db.name
 
     def apply(r: ResultName[PackFile])(rs: WrappedResultSet): PackFile = {
-      PackFile(id = rs.string(r.id),
+      PackFile(
+        id = rs.string(r.id),
         ext = rs.string(r.ext),
         size = rs.int(r.size)
       )
@@ -144,7 +193,7 @@ trait Packs extends SQLSyntaxSupport[Pack] {
       PackData(id = rs.string(r.id),
         ext = rs.string(r.ext),
         chunk = rs.int(r.chunk),
-        data = self.createBlobFromRs(rs.underlying, r.data)
+        data = rs.binaryStream(r.data)
       )
     }
 

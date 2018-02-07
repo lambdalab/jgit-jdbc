@@ -1,18 +1,12 @@
 package com.lambdalab.jgit.jdbc.schema
 
-import java.sql.{Blob, Connection, ResultSet}
-
-import com.lambdalab.jgit.jdbc.steams.LargeObjectDfsOutputStream
-import org.eclipse.jgit.internal.storage.dfs.DfsOutputStream
-import org.postgresql.PGConnection
-import org.postgresql.largeobject.LargeObjectManager
 import scalikejdbc._
 
 trait PostgresSchemaSupport extends JdbcSchemaSupport{
 
   lazy val packTableName = s"${tablePrefix}_packs"
   lazy val packDataTableName = s"${tablePrefix}_packs_data"
-  lazy val packFileTableName = s"`${tablePrefix}_packs_files`"
+  lazy val packFileTableName = s"${tablePrefix}_packs_files"
   lazy val refsTableName = s"${tablePrefix}_refs"
 
   override def isTableExists(tableName: String) = db localTx {
@@ -25,54 +19,47 @@ trait PostgresSchemaSupport extends JdbcSchemaSupport{
   override def createPackTable = db autoCommit { implicit session =>
     val createTable =
       s"""CREATE TABLE IF NOT EXISTS "$packTableName" (
-         id SERIAL PRIMARY KEY,
+         repo varchar(255),
+         id char(48) PRIMARY KEY,
          source varchar(255) DEFAULT NULL,
-         committed boolean NOT NULL DEFAULT false.
-         estimated_pack_size INT(11)
-        )"""
+         committed boolean NOT NULL DEFAULT false,
+         estimated_pack_size INT
+        );
+        CREATE INDEX "${packTableName}_repo_idx" ON "$packTableName"("repo");"""
     session.execute(createTable)
+    val createFileTable =s"""
+          CREATE TABLE $packFileTableName (
+          id char(48) NOT NULL REFERENCES $packTableName ON DELETE CASCADE,
+          ext varchar(8) NOT NULL DEFAULT '',
+          size int NOT NULL DEFAULT '0',
+          PRIMARY KEY (id,ext)
+          )
+      """
+    session.execute(createFileTable)
     val createDataTable =
       s"""CREATE TABLE "${packTableName}_data" (
-        id integer REFERENCES test_packs ON DELETE CASCADE,
+        id char(48),
         ext varchar(8) NOT NULL DEFAULT '',
-        data oid,
-        PRIMARY KEY (id,ext)
-      )"""
+        chunk int NOT NULL DEFAULT 0,
+        data  bytea,
+        PRIMARY KEY (id,ext, chunk),
+         CONSTRAINT fk_${packFileTableName}_pack_id FOREIGN KEY (id,ext)
+         REFERENCES $packFileTableName (id,ext) ON DELETE CASCADE
+       )"""
     session.execute(createDataTable)
   }
 
   override def createRefTable = db autoCommit { implicit session =>
     val createTable =
       s"""CREATE TABLE IF NOT EXISTS "$refsTableName" (
-             name varchar(255) NOT NULL DEFAULT '',
+            repo varchar(255) NOT NULL,
+            name varchar(255) NOT NULL DEFAULT '',
             object_id varchar(40) DEFAULT NULL,
             symbolic boolean DEFAULT 'false',
             target varchar(255) DEFAULT NULL,
-            PRIMARY KEY (name)
+            PRIMARY KEY (repo, name)
       )"""
     session.execute(createTable)
-  }
-
-  override def createBlobOutputStream(conn: Connection, commitCallback: Any => Unit): DfsOutputStream = {
-    val  pgConn = conn.unwrap(classOf[org.postgresql.jdbc4.Jdbc4Connection])
-    pgConn.setAutoCommit(false)
-    val lobj = pgConn.getLargeObjectAPI
-    val oid = lobj.createLO(LargeObjectManager.READ | LargeObjectManager.WRITE)
-    val obj = lobj.open(oid, LargeObjectManager.WRITE)
-    new LargeObjectDfsOutputStream(obj) {
-      override def commit(): Unit = {
-        commitCallback(oid)
-      }
-
-      override def close(): Unit = {
-        super.close()
-        conn.close()
-      }
-    }
-  }
-
-  def createBlobFromRs(rs: ResultSet, columnLabel: String): Blob = {
-     rs.getBlob(columnLabel)
   }
 
   override def getUpsertSql(tableName: String,
@@ -82,4 +69,6 @@ trait PostgresSchemaSupport extends JdbcSchemaSupport{
       INSERT INTO $tableName ($columns) VALUES($columnBindings)
       ON CONFLICT ON CONSTRAINT ${tableName}_pkey  DO UPDATE set $updates
     """
+
+  override val concatExpress: String = " data || ? "
 }

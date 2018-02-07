@@ -67,3 +67,21 @@ abstract class ChunkedReadableChannel(chunkSize: Int) extends ReadableChannel {
     currentBuff = null
   }
 }
+
+object EmptyReadableChannel extends ReadableChannel {
+  override def setReadAheadBytes(bufferSize: Int): Unit = {}
+
+  override def blockSize(): Int = 0
+
+  override def size(): Long = 0
+
+  override def position(): Long = 0
+
+  override def position(newPosition: Long): Unit = {}
+
+  override def read(dst: ByteBuffer): Int = 0
+
+  override def isOpen: Boolean = false
+
+  override def close(): Unit = {}
+}

@@ -1,10 +1,5 @@
 package com.lambdalab.jgit.jdbc.schema
 
-import java.sql.{Blob, Connection, ResultSet}
-
-import com.lambdalab.jgit.jdbc.steams.BlobDfsOutputStream
-import org.eclipse.jgit.internal.storage.dfs.DfsOutputStream
-
 trait MysqlSchemaSupport extends JdbcSchemaSupport {
 
   lazy val packTableName = s"`${tablePrefix}_packs`"
@@ -30,7 +25,7 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
          CREATE TABLE $packFileTableName (
            `id` char(48) NOT NULL DEFAULT '',
            `ext` varchar(8) NOT NULL DEFAULT '',
-           `size` int(11) unsigned NOT NULL DEFAULT '0'
+           `size` int(11) unsigned NOT NULL DEFAULT '0',
            PRIMARY KEY (`id`,`ext`),
            CONSTRAINT `fk_${unquote(packTableName)}_pack_id` FOREIGN KEY (`id`) REFERENCES $packTableName (`id`) ON DELETE CASCADE
          ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -62,20 +57,6 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
     session.execute(createTable)
   }
 
-  override def createBlobOutputStream(conn: Connection, commitCallback: (Any) => Unit): DfsOutputStream = {
-    val blob = conn.createBlob()
-    new BlobDfsOutputStream(blob) {
-      override def commit(): Unit = commitCallback(blob)
-
-      override def close(): Unit = {
-        super.close()
-        conn.close()
-      }
-    }
-  }
-  def createBlobFromRs(rs: ResultSet, columnLabel: String): Blob = {
-      rs.getBlob(columnLabel)
-  }
 
   override def getUpsertSql(tableName: String,
                             columns: String,
@@ -85,6 +66,6 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
        on duplicate key update $updates
     """
 
-
+  override val concatExpress = "concat(data, ?)"
 
 }

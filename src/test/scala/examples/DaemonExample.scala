@@ -8,7 +8,7 @@ import benchmarks.InitJdbc
 import com.google.common.cache.CacheBuilder
 import com.google.common.io.Files
 import com.lambdalab.jgit.cassandra.CassandraRepoBuilder
-import com.lambdalab.jgit.jdbc.{ClearableRepo, MysqlRepoBuilder}
+import com.lambdalab.jgit.jdbc.{ClearableRepo, MysqlRepoBuilder, PostgresRepoBuilder}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.lang.math.RandomUtils
 import org.eclipse.jgit.api.Git
@@ -97,12 +97,21 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
           r.create()
         r
       case "file" =>
-        val repoDir = new File(repoParent, repo + "_" + RandomUtils.nextInt())
+        val repoDir = new File(repoParent, repo)
         if (create)
           Git.init().setBare(true).setDirectory(repoDir).call().getRepository
         else {
           Git.open(repoDir).getRepository
         }
+      case "postgres" =>
+        val r = new PostgresRepoBuilder()
+            .setRepoName(repo)
+            .setDBName('postgres)
+            .setBare()
+            .build()
+        if (create && !r.exists())
+          r.create()
+        r
       case _ =>
         new InMemoryRepository(new DfsRepositoryDescription(repo))
 

@@ -40,7 +40,7 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStrea
     val n = Math.min(from.readableBytes(), buf.remaining())
     val oldLimit = buf.limit()
     buf.limit(buf.position()+ n)
-    from.readBytes(buf)
+    from.getBytes(from.readerIndex(), buf)
     buf.limit(oldLimit)
     n
   }
