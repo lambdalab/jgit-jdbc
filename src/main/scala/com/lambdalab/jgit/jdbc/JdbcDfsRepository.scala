@@ -12,6 +12,7 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
     extends DfsRepository(builder) with JdbcSchemaSupport with ClearableRepo {
 
   private val repoName = this.getDescription.getRepositoryName
+
   def tablePrefix = "t"
 
   private val objDatabase = new JdbcDfsObjDatabase(this)
@@ -22,7 +23,11 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
   override val getRefDatabase: RefDatabase = refDatabase
 
   override def exists(): Boolean = {
-    isTableExists(refsTableName) && isTableExists(packTableName)
+
+    isTableExists(refsTableName) && isTableExists(packTableName) && (this.db readOnly {
+      implicit s =>
+        refDatabase.refs.all.nonEmpty
+    })
   }
 
   override def create(bare: Boolean): Unit = {
@@ -49,7 +54,7 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
     refDatabase.clear()
     objDatabase.clear()
     scanForRepoChanges()
-    if(init) {
+    if (init) {
       initRepo
     }
   }

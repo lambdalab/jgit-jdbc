@@ -1,10 +1,10 @@
 package tests
 
-import com.lambdalab.jgit.jdbc.JdbcDfsRepository
+import com.lambdalab.jgit.jdbc.MysqlDfsRepository
 import com.lambdalab.jgit.jdbc.test.{DfsGarbageCollectorTest, TiDBRepoTestBase}
 import org.junit.{AfterClass, Before, BeforeClass}
 
-class TiDBGCTest extends DfsGarbageCollectorTest[JdbcDfsRepository] with TiDBRepoTestBase {
+class TiDBGCTest extends DfsGarbageCollectorTest[MysqlDfsRepository] with TiDBRepoTestBase {
   @Before
   def setup(): Unit = {
     super.setUp()

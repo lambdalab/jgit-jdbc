@@ -1,19 +1,11 @@
 package com.lambdalab.jgit.jdbc.test
 
-import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlRepoBuilder}
+import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlRepoBuilder, MysqlRepoManager, PostgresRepoManager}
 import org.junit.{AfterClass, BeforeClass}
-import scalikejdbc.ConnectionPool
+import scalikejdbc.{ConnectionPool, NamedDB}
 
 trait MysqlRepoTestBase {
   var dfsRepo: JdbcDfsRepository =_
-
-  protected def initRepo(): JdbcDfsRepository = {
-    val builder = new MysqlRepoBuilder()
-    builder.setDBName('mysql)
-    builder.setRepoName("test")
-    dfsRepo = builder.build()
-    dfsRepo
-  }
 
   val dbname = "test"
   val port = 23306
@@ -22,6 +14,10 @@ trait MysqlRepoTestBase {
   val password = "example"
 
   var container: String = null
+
+  protected def repoManager(): MysqlRepoManager = {
+    new MysqlRepoManager(NamedDB('mysql))
+  }
 
    def start() : Unit = {
     container =  DockerTool.startContainer("jgit-mysql", "mysql:5.6",

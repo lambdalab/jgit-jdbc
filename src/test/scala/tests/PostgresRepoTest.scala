@@ -1,10 +1,10 @@
 package tests
 
-import com.lambdalab.jgit.jdbc.JdbcDfsRepository
+import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, PostgresDfsRepository}
 import com.lambdalab.jgit.jdbc.test.{PostgresTestBase, TestRepositoryTest}
 import org.junit.{AfterClass, Before, BeforeClass}
 
-class PostgresRepoTest extends  TestRepositoryTest[JdbcDfsRepository] with PostgresTestBase {
+class PostgresRepoTest extends  TestRepositoryTest[PostgresDfsRepository] with PostgresTestBase {
 
   @Before
   def setup(): Unit = {

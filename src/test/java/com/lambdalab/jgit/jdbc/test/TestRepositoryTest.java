@@ -52,8 +52,11 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
 import java.util.regex.Pattern;
 
+import com.lambdalab.jgit.JGitRepoManager;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.internal.storage.dfs.InMemoryRepository;
 import org.eclipse.jgit.junit.TestRepository;
@@ -69,15 +72,34 @@ import org.junit.Test;
 
 abstract public class TestRepositoryTest<T extends Repository> {
   protected TestRepository<T> tr;
-  protected Repository repo;
+  protected T repo;
   private RevWalk rw;
 
-  abstract protected T initRepo();
+  abstract protected JGitRepoManager<T> repoManager();
+  String repoName = "test";
+
+  @Test
+  public void testManager() {
+   JGitRepoManager repoManager = repoManager();
+    repoManager.deleteRepo(repoName);
+    assertFalse("repo should not exists after delete", repoManager.isRepoExists(repoName));
+    repoManager.createRepo(repoName);
+    assertTrue("repo should exists after create", repoManager.isRepoExists(repoName));
+    Iterator<String> it = repoManager.allRepoNames();
+    assertTrue(it.hasNext());
+    assertEquals(repoName, it.next());
+  }
 
   @Before
   public void setUp() throws Exception {
-    tr = new TestRepository<>(initRepo());
-    repo = tr.getRepository();
+    JGitRepoManager<T> repoManager = repoManager();
+
+    if(repoManager.isRepoExists(repoName)) {
+      repo = repoManager.openRepo(repoName);
+    }else {
+      repo = repoManager.openRepo(repoName);
+    }
+    tr = new TestRepository<>(repo);
     rw = tr.getRevWalk();
   }
 

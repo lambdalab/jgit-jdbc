@@ -1,11 +1,11 @@
 package tests
 
-import com.lambdalab.jgit.jdbc.JdbcDfsRepository
+import com.lambdalab.jgit.jdbc.PostgresDfsRepository
 import com.lambdalab.jgit.jdbc.test.{DfsGarbageCollectorTest, PostgresTestBase}
 import org.junit.{AfterClass, Before, BeforeClass}
 
 
-class PostgresGcTest  extends DfsGarbageCollectorTest[JdbcDfsRepository] with PostgresTestBase{
+class PostgresGcTest  extends DfsGarbageCollectorTest[PostgresDfsRepository] with PostgresTestBase{
   @Before
   def setup(): Unit = {
     super.setUp()

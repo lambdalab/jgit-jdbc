@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import com.lambdalab.jgit.JGitRepoManager;
 import org.eclipse.jgit.internal.storage.dfs.*;
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource;
 import org.eclipse.jgit.junit.MockSystemReader;
@@ -34,14 +35,24 @@ import org.junit.Test;
 
 public abstract class DfsGarbageCollectorTest<T extends DfsRepository> {
   private TestRepository<T> git;
-  private T repo;
+  protected T repo;
   private DfsObjDatabase odb;
   private MockSystemReader mockSystemReader;
-  abstract protected T initRepo();
+  String repoName = "test";
+
+  protected T initRepo() {
+    JGitRepoManager<T> repoManager = repoManager();
+    if (repoManager.isRepoExists(repoName)) {
+      return repoManager.openRepo(repoName);
+    } else {
+      return repoManager.createRepo(repoName);
+    }
+  }
+
+  abstract protected JGitRepoManager<T> repoManager();
 
   @Before
   public void setUp() throws IOException {
-    DfsRepositoryDescription desc = new DfsRepositoryDescription("test");
     git = new TestRepository<>(initRepo());
     repo = git.getRepository();
     odb = repo.getObjectDatabase();
@@ -665,7 +676,7 @@ public abstract class DfsGarbageCollectorTest<T extends DfsRepository> {
       for (Ref ref : repo.getAllRefs().values()) {
         rw.markStart(rw.parseCommit(ref.getObjectId()));
       }
-      for (RevCommit next; (next = rw.next()) != null;) {
+      for (RevCommit next; (next = rw.next()) != null; ) {
         if (AnyObjectId.equals(next, id)) {
           return true;
         }

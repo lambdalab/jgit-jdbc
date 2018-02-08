@@ -1,16 +1,16 @@
 package tests
 
-import com.lambdalab.jgit.jdbc.JdbcDfsRepository
+import com.lambdalab.jgit.jdbc.MysqlDfsRepository
 import com.lambdalab.jgit.jdbc.test.{DfsGarbageCollectorTest, MysqlRepoTestBase}
 import org.junit.{AfterClass, Before, BeforeClass}
 
-class MysqlGCTest extends DfsGarbageCollectorTest[JdbcDfsRepository] with MysqlRepoTestBase {
+class MysqlGCTest extends DfsGarbageCollectorTest[MysqlDfsRepository] with MysqlRepoTestBase {
   @Before
   def setup(): Unit = {
     super.setUp()
-    if(!dfsRepo.exists())
-      dfsRepo.create()
-    dfsRepo.clearRepo()
+    if(!repo.exists())
+      repo.create()
+    repo.clearRepo()
   }
 }
 

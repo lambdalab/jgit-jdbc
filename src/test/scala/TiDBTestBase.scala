@@ -1,18 +1,15 @@
 package com.lambdalab.jgit.jdbc.test
 
-import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlRepoBuilder}
-import scalikejdbc.ConnectionPool
+import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlRepoBuilder, MysqlRepoManager}
+import scalikejdbc.{ConnectionPool, NamedDB}
 
 trait TiDBRepoTestBase {
   var dfsRepo: JdbcDfsRepository =_
 
-  protected def initRepo(): JdbcDfsRepository = {
-    val builder = new MysqlRepoBuilder()
-    builder.setDBName('tidb)
-    builder.setRepoName("test")
-    dfsRepo = builder.build()
-    dfsRepo
+  protected def repoManager(): MysqlRepoManager = {
+    new MysqlRepoManager(NamedDB('tidb))
   }
+
 
   val dbname = "test"
   val port = 24000

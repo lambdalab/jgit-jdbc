@@ -4,7 +4,7 @@ import java.util
 
 import com.lambdalab.jgit.JGitRepoManager
 
-class CassandraRepoManager(val settings: CassandraSettings) extends JGitRepoManager with CassandraContext {
+class CassandraRepoManager(val settings: CassandraSettings) extends JGitRepoManager[CassandraDfsRepo] with CassandraContext {
 
   def init(): Unit = {
     CassandraRefs.createSchema(settings)
@@ -35,12 +35,14 @@ class CassandraRepoManager(val settings: CassandraSettings) extends JGitRepoMana
     openRepo(name).clearRepo(false)
   }
 
-  override def allRepoNames(): java.util.Iterator[String] = {
+  override def allRepoNames(): java.util.Iterator[String] with AutoCloseable= {
     val cql = "select distinct repo from refs"
     val iterator = execute(cql)(_.bind()).iterator()
-    val ret = new util.Iterator[String] {
+    val ret = new util.Iterator[String] with AutoCloseable{
       override def next(): String = iterator.next().getString(0)
       override def hasNext: Boolean = iterator.hasNext
+
+      override def close(): Unit = {}
     }
     ret
   }

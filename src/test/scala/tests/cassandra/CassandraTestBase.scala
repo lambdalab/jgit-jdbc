@@ -1,24 +1,23 @@
 package tests.cassandra
 
-import com.lambdalab.jgit.cassandra.{CassandraDfsRepo, CassandraRepoBuilder}
+import com.datastax.driver.core.Cluster
+import com.lambdalab.jgit.JGitRepoManager
+import com.lambdalab.jgit.cassandra.{CassandraDfsRepo, CassandraRepoBuilder, CassandraRepoManager, CassandraSettings}
 import com.lambdalab.jgit.jdbc.test.DockerTool
 
 trait CassandraTestBase {
   var dfsRepo: CassandraDfsRepo = _
-  val keyspace = "jgit"
 
-  val repoName = "test"
 
-  val cassandraBuilder = {
-    new CassandraRepoBuilder()
-        .setRepoName(repoName)
-        .setKeyspace(keyspace)
-        .configCluster(_.addContactPoint("127.0.0.1"))
+  val cassandraSettings = new CassandraSettings {
+    override val cluster: Cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
+    override val keyspace: String = "jgit"
   }
 
-  protected def initRepo(): CassandraDfsRepo = {
-    dfsRepo = cassandraBuilder.build()
-    dfsRepo
+  protected def repoManager(): JGitRepoManager[CassandraDfsRepo] = {
+    val manager = new CassandraRepoManager(cassandraSettings)
+    manager.init()
+    manager
   }
 
   val port = 9042

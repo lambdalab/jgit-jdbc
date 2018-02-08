@@ -1,20 +1,15 @@
 package com.lambdalab.jgit.jdbc.test
 
-import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlRepoBuilder, PostgresRepoBuilder}
-import com.lambdalab.jgit.jdbc.test.DockerTool
-import org.junit.{AfterClass, BeforeClass}
-import scalikejdbc.ConnectionPool
+import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, PostgresRepoManager}
+import scalikejdbc.{ConnectionPool, NamedDB}
 
 
 trait PostgresTestBase {
   var dfsRepo: JdbcDfsRepository =_
 
-  protected def initRepo(): JdbcDfsRepository = {
-    val builder =new PostgresRepoBuilder()
-    builder.setDBName('postgres)
-    builder.setRepoName("test")
-    dfsRepo = builder.build()
-    return dfsRepo
+
+  protected def repoManager(): PostgresRepoManager = {
+    new PostgresRepoManager(NamedDB('postgres))
   }
 
   val dbname = "test"

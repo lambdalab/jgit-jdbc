@@ -1,11 +1,11 @@
 package tests
 
-import com.lambdalab.jgit.jdbc.JdbcDfsRepository
-import com.lambdalab.jgit.jdbc.test.{TiDBRepoTestBase, TestRepositoryTest}
+import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlDfsRepository}
+import com.lambdalab.jgit.jdbc.test.{TestRepositoryTest, TiDBRepoTestBase}
 import org.junit.Assert._
 import org.junit.{AfterClass, Before, BeforeClass, Test}
 
-class TiDBRepoTest extends  TestRepositoryTest[JdbcDfsRepository] with TiDBRepoTestBase {
+class TiDBRepoTest extends  TestRepositoryTest[MysqlDfsRepository] with TiDBRepoTestBase {
 
   @Before
   def setup(): Unit = {

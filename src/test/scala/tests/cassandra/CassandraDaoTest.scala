@@ -8,8 +8,8 @@ import org.junit.Assert._
 import org.junit.{Before, Test}
 
 class CassandraDaoTest extends CassandraTestBase {
+  val repoName = "test"
 
-  lazy val cassandraSettings = cassandraBuilder.settings
 
   val packs= new CassandraPacks with CassandraContext {
     override val settings: CassandraSettings = cassandraSettings
