@@ -1,2 +1,4 @@
 rootProject.name = 'jgit-jdbc'
 
+include 'jgit-jdbc'
+include 'gerrit'
