@@ -2,15 +2,19 @@ package examples
 
 import java.io.File
 import java.net.InetSocketAddress
+import java.util.Collections
 import java.util.concurrent.Callable
 
 import benchmarks.InitJdbc
 import com.google.common.cache.CacheBuilder
 import com.google.common.io.Files
 import com.lambdalab.jgit.cassandra.CassandraRepoBuilder
+import com.lambdalab.jgit.ignite.IgniteRepoBuilder
 import com.lambdalab.jgit.jdbc.{ClearableRepo, MysqlRepoBuilder, PostgresRepoBuilder}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.lang.math.RandomUtils
+import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi
+import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.internal.storage.dfs.{DfsRepositoryDescription, InMemoryRepository}
 import org.eclipse.jgit.internal.storage.file.FileRepository
@@ -28,7 +32,7 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
         r.clearRepo()
         repo
       case f: FileRepository =>
-//        f.close()
+        //        f.close()
         FileUtils.deleteQuietly(f.getDirectory)
 
         reposCache.invalidate(name)
@@ -108,6 +112,21 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
             .setRepoName(repo)
             .setDBName('postgres)
             .setBare()
+            .build()
+        if (create && !r.exists())
+          r.create()
+        r
+      case "ignite" =>
+        val r = new IgniteRepoBuilder()
+            .setRepoName(repo)
+            .setupIgnite { cfg =>
+              cfg.setClientMode(true)
+              val spi = new TcpDiscoverySpi
+              val finder = new TcpDiscoveryVmIpFinder()
+              finder.setAddresses(Collections.singleton("127.0.0.1"))
+              spi.setIpFinder(finder)
+              cfg.setDiscoverySpi(spi)
+            }
             .build()
         if (create && !r.exists())
           r.create()

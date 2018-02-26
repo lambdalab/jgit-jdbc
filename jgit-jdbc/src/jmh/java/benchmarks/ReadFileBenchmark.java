@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 @State(Scope.Benchmark)
 public class ReadFileBenchmark {
-  @Param({"file", "cassandra", "postgres","tidb","mysql","mem"})
+  @Param({"ignite", "tidb", "file",/* "cassandra", "postgres","mysql",*/"mem"})
   String engine;
 
   @Param({"MEDIUM"})

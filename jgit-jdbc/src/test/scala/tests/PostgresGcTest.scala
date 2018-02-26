@@ -10,7 +10,7 @@ class PostgresGcTest  extends DfsGarbageCollectorTest[PostgresDfsRepository] wit
   def setup(): Unit = {
     super.setUp()
 
-    dfsRepo.clearRepo()
+    dfsRepo.clear()
   }
 }
 

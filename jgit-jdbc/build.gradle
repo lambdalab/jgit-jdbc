@@ -4,6 +4,9 @@ apply plugin: 'io.morethan.jmhreport'
 apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'maven'
 apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.bintray'
+
+group 'com.lambdalab.jgit'
 
 repositories {
   mavenCentral()
@@ -30,7 +33,7 @@ dependencies {
     exclude group: "org.apache.httpcomponents", module:"httpclient"
   }
   compile 'com.datastax.cassandra:cassandra-driver-core:3.3.2'
-
+  compile "org.apache.ignite:ignite-core:2.3.0"
   compile 'ch.qos.logback:logback-classic:1.2.3'
   compile 'org.scalikejdbc:scalikejdbc_2.11:3.1.0'
   compile 'org.apache.httpcomponents:httpclient:4.5'
@@ -55,7 +58,7 @@ jmhReport {
   jmhReportOutput = project.file('build/reports/jmh')
 }
 jmh {
-  include = ['ReadFileBenchmark']
+  include = ['ReadFileBenchmark','PushBenchmark', 'ChangeRefBenchmark']
   resultFormat = 'json'
   jvmArgs=['-Xmx2G','-Xms2G']
 }
@@ -63,10 +66,7 @@ publishing {
   publications {
     MyPublication(MavenPublication) {
       from components.java
-    }
-    shadow(MavenPublication) { publication ->
-      project.shadow.component(publication)
-      artifactId = "jgit-jdbc-gerrit"
+      version "1.0"
     }
   }
 }
@@ -81,8 +81,10 @@ bintray {
     userOrg = 'lambdalab'
     licenses = ['Apache-2.0']
     vcsUrl = 'https://github.com/lambdalab/jgit-jdbc.git'
+    version {
+      name = "1.0"
+    }
   }
-
 }
 
 task installLocal(dependsOn: publishToMavenLocal)

@@ -8,7 +8,9 @@ class TiDBGCTest extends DfsGarbageCollectorTest[MysqlDfsRepository] with TiDBRe
   @Before
   def setup(): Unit = {
     super.setUp()
-    dfsRepo.clearRepo()
+    if(!repo.exists())
+      repo.create()
+    repo.clear()
   }
 }
 

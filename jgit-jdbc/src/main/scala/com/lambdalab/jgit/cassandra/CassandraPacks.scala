@@ -1,9 +1,8 @@
 package com.lambdalab.jgit.cassandra
 
-import java.nio.ByteBuffer
 import java.util.UUID
 
-import com.datastax.driver.core.{BatchStatement, Session}
+import com.datastax.driver.core.BatchStatement
 import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
 import io.netty.buffer.{ByteBuf, Unpooled}
 import org.eclipse.jgit.internal.storage.dfs.{DfsOutputStream, ReadableChannel}
@@ -12,7 +11,6 @@ import scala.collection.JavaConverters._
 
 case class Pack(id: UUID, source: String, committed: Boolean, estimatedPackSize: Int)
 
-case class PackData(id: UUID, ext: String, blobs: List[ByteBuffer])
 object CassandraPacks {
   val schema =
     """CREATE TABLE packs (

@@ -5,6 +5,6 @@ plugins {
   id 'com.github.johnrengelman.shadow' version '2.0.2'
 }
 
-group 'com.lambdalab'
+group 'com.lambdalab.jgit'
 version '1.0-SNAPSHOT'
 

@@ -8,6 +8,6 @@ object InitJdbc {
     GlobalSettings.loggingSQLAndTime = LoggingSQLAndTimeSettings(enabled = false)
     new MysqlRepoTestBase {}.initJdbc()
     new TiDBRepoTestBase {}.initJdbc()
-    new PostgresTestBase {}.initJdbc()
+//    new PostgresTestBase {}.initJdbc()
   }
 }

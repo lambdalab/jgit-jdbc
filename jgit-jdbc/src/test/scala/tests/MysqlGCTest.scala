@@ -10,7 +10,7 @@ class MysqlGCTest extends DfsGarbageCollectorTest[MysqlDfsRepository] with Mysql
     super.setUp()
     if(!repo.exists())
       repo.create()
-    repo.clearRepo()
+    repo.clear()
   }
 }
 

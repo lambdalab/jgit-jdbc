@@ -18,7 +18,7 @@ public class PushBenchmark {
   @Param({"SMALL", "MEDIUM"})
   String repoName;
 
-  @Param({"file", "mem", "cassandra", "mysql", "tidb"})
+  @Param({"ignite","file", "mem", /*"cassandra", "mysql", */"tidb"})
   String engine;
 
   File getPath() {

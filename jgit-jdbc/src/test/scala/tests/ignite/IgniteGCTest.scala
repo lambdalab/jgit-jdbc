@@ -1,18 +1,19 @@
-package tests.cassandra
+package tests.ignite
 
-import com.lambdalab.jgit.cassandra.CassandraDfsRepo
+import com.lambdalab.jgit.ignite.IgniteRepo
 import com.lambdalab.jgit.jdbc.test.DfsGarbageCollectorTest
 import org.junit.{AfterClass, Before, BeforeClass}
 
-class CassandraGcTest  extends  DfsGarbageCollectorTest[CassandraDfsRepo] with CassandraTestBase {
+class IgniteGCTest extends  DfsGarbageCollectorTest[IgniteRepo] with IgniteTestBase {
+
   @Before
   def setup(): Unit = {
     super.setUp()
-    dfsRepo.clear()
+    repo.clear()
   }
 }
 
-object CassandraGcTest extends CassandraTestBase {
+object IgniteGCTest extends IgniteTestBase {
   @BeforeClass
   def beforeClass(): Unit = {
     this.start()

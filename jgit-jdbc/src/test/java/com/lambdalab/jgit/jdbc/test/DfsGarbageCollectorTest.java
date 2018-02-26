@@ -42,6 +42,7 @@ public abstract class DfsGarbageCollectorTest<T extends DfsRepository> {
 
   protected T initRepo() {
     JGitRepoManager<T> repoManager = repoManager();
+    repoManager.init();
     if (repoManager.isRepoExists(repoName)) {
       return repoManager.openRepo(repoName);
     } else {

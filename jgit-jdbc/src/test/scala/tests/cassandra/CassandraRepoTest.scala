@@ -9,7 +9,7 @@ class CassandraRepoTest extends TestRepositoryTest[CassandraDfsRepo] with Cassan
   @Before
   def setup(): Unit = {
     super.setUp()
-    dfsRepo.clearRepo()
+    dfsRepo.clear()
   }
 
 }
@@ -17,11 +17,11 @@ class CassandraRepoTest extends TestRepositoryTest[CassandraDfsRepo] with Cassan
 object CassandraRepoTest extends CassandraTestBase {
   @BeforeClass
   def beforeClass(): Unit = {
-    this.start()
-  }
+  this.start()
+}
 
   @AfterClass
   def afterClass(): Unit = {
-    this.stop()
-  }
+  this.stop()
+}
 }

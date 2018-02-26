@@ -12,7 +12,7 @@ class TiDBRepoTest extends  TestRepositoryTest[MysqlDfsRepository] with TiDBRepo
     super.setUp()
     if(!dfsRepo.exists())
       dfsRepo.create()
-    dfsRepo.clearRepo()
+    dfsRepo.clear()
   }
 
   @Test

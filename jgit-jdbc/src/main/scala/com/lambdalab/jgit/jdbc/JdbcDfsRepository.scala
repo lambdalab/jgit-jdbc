@@ -57,12 +57,9 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
     }
   }
 
-  def clearRepo(init: Boolean = true): Unit = {
+  def clear(): Unit = {
     refDatabase.clear()
     objDatabase.clear()
-    scanForRepoChanges()
-    if (init) {
-      initRepo
-    }
+
   }
 }

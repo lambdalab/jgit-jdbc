@@ -15,7 +15,7 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStrea
     def end = offset + buf.writerIndex()
   }
 
-  var current = BufHolder(Unpooled.wrappedBuffer(new Array[Byte](chunkSize)), 0)
+  var current = BufHolder(Unpooled.buffer(chunkSize), 0)
 
   def readFromDB(chunk: Int): ByteBuf
 
@@ -46,7 +46,6 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStrea
   }
 
   override def write(b: Array[Byte], off: Int, len: Int): Unit = {
-    println("writing "+b.length)
     val buf = current.buf
     val writeLen = Math.min(len, buf.writableBytes())
     buf.writeBytes(b, off, writeLen)

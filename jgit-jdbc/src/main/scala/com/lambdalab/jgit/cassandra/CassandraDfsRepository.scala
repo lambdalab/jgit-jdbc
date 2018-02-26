@@ -65,12 +65,9 @@ class CassandraDfsRepo(builder: CassandraRepoBuilder) extends DfsRepository(buil
 
   override def getRefDatabase: RefDatabase = refDatabase
 
-  def clearRepo(init:Boolean = true): Unit = {
+  def clear(): Unit = {
     objDatabase.clear()
     refDatabase.clear()
-    scanForRepoChanges()
-    if(init)
-      initRepo
   }
 
   private def initRepo = {

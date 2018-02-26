@@ -97,11 +97,11 @@ abstract public class TestRepositoryTest<T extends Repository> {
   @Before
   public void setUp() throws Exception {
     JGitRepoManager<T> repoManager = repoManager();
-
+    repoManager.init();
     if(repoManager.isRepoExists(repoName)) {
       repo = repoManager.openRepo(repoName);
     }else {
-      repo = repoManager.openRepo(repoName);
+      repo = repoManager.createRepo(repoName);
     }
     tr = new TestRepository<>(repo);
     rw = tr.getRevWalk();
