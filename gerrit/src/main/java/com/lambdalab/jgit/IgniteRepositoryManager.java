@@ -16,7 +16,7 @@ import java.util.Arrays;
 @Singleton
 public class IgniteRepositoryManager extends JGitRepositoryManager<IgniteRepo> {
   private static final String CLIENT_MODE = "clientMode";
-  private static final String STORAGE_PATH = "storage";
+  private static final String STORAGE_PATH = "storagePath";
   private static final String IP_FINDER = "ipFinder";
   private static final String K8_FINDER = "k8";
 
@@ -31,13 +31,13 @@ public class IgniteRepositoryManager extends JGitRepositoryManager<IgniteRepo> {
 
   @Override
   public void stop() {
-
+     ((IgniteRepoManager)repoManager).ignite().close();
   }
 
   @Override
   public void start() {
     if (repoManager != null) return;
-    boolean clientMode = config.getString(CLIENT_MODE).equalsIgnoreCase("true");
+    boolean clientMode = "true".equalsIgnoreCase(config.getString(CLIENT_MODE));
     IgniteConfiguration cfg = new IgniteConfiguration();
     cfg.setClientMode(clientMode);
     if (!clientMode) {

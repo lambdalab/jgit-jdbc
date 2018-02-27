@@ -1,12 +1,16 @@
 package com.lambdalab.jgit.ignite
 
 import java.util
+import java.util.function.Consumer
+import javax.cache.Cache
 
 import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
 import io.netty.buffer.{ByteBuf, Unpooled}
-import org.apache.ignite.Ignite
+import org.apache.ignite.{Ignite, IgniteCache}
+import org.apache.ignite.cache.CacheEntry
 import org.apache.ignite.cache.query.ScanQuery
-import org.apache.ignite.lang.IgniteBiPredicate
+import org.apache.ignite.internal.util.lang.gridfunc.ClusterNodeGetIdClosure
+import org.apache.ignite.lang.{IgniteBiPredicate, IgniteClosure}
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
 import org.eclipse.jgit.internal.storage.pack.PackExt
@@ -25,13 +29,12 @@ case class PackFile(id: Long,
 
 class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsReaderOptions) with IgniteTxSupport {
 
-
   override def ignite: Ignite = repo.ignite
 
   val chunkSize = 512 * 1024
 
   val seq = repo.ignite.atomicSequence(s"${repo.getDescription.getRepositoryName}_seq", 1, true)
-  private  val packCacheName = s"${repo.getDescription.getRepositoryName}_packs"
+  private val packCacheName = s"${repo.getDescription.getRepositoryName}_packs"
   val packs = repo.ignite.getOrCreateCache[Long, Pack](packCacheName)
   val packFiles = repo.ignite.getOrCreateCache[String, PackFile](s"${packCacheName}_files")
   val packChunks = repo.ignite.getOrCreateCache[String, Array[Byte]](s"${packCacheName}_chunks")
@@ -82,11 +85,11 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
     })).getAll.asScala.map {
       e =>
         val desc = new IgnitePackDescription(e.getValue).asInstanceOf[DfsPackDescription]
-        getFiles(e.getKey).foreach{
+        getFiles(e.getKey).foreach {
           p =>
             val ext = PackExt.newPackExt(p.ext)
             desc.addFileExt(ext)
-            desc.setFileSize(ext,p.size)
+            desc.setFileSize(ext, p.size)
         }
         desc
     }.asJava
@@ -104,8 +107,6 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
     val id = pack.id
     val fileKey = s"${id}_$ext"
     val packFile = packFiles.getAndPutIfAbsent(fileKey, new PackFile(id, ext, 0))
-
-
 
     new ChunkedDfsOutputStream(chunkSize) {
       override def readFromDB(chunk: Int): ByteBuf = {
@@ -149,15 +150,30 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
   override def commitPackImpl(desc: util.Collection[DfsPackDescription],
                               replaces: util.Collection[DfsPackDescription]): Unit = {
     val saves = desc.asScala.map(_.asInstanceOf[IgnitePackDescription]).toSet
-    val deletes = if(replaces == null)  Nil.toSet.asJava else
+    val deletes = if (replaces == null) Nil.toSet.asJava else
       replaces.asScala.map(_.asInstanceOf[IgnitePackDescription].pack.id).toSet.asJava
     withTx {
       _ =>
         packs.clearAll(deletes)
+        deleteFromCache[String, PackFile](packFiles, (_, v) => deletes.contains(v.id))
+        deleteFromCache[String, Array[Byte]](packChunks, { (k, _) =>
+          val id = k.split('_').head.toLong
+          deletes.contains(id)
+        })
         saves.foreach(p => {
           packs.replace(p.pack.id, Pack(p.pack.id, p.getPackSource.name(), true, p.getEstimatedPackSize))
         })
     }
+  }
+
+  private def deleteFromCache[K, V](cache: IgniteCache[K, V], pred: (K, V) => Boolean): Unit = {
+    val cursor = cache.query(new ScanQuery[K, V](new IgniteBiPredicate[K, V] {
+      override def apply(k: K, v: V): Boolean = pred(k, v)
+    }))
+    cursor.forEach(new Consumer[Cache.Entry[K,V]] {
+      override def accept(e: Cache.Entry[K,V]): Unit = cache.remove(e.getKey)
+    })
+    cursor.close()
   }
 
   class IgnitePackDescription(val pack: Pack) extends DfsPackDescription(repo.getDescription,
