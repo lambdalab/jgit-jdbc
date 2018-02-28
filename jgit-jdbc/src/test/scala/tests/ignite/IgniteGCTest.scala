@@ -12,7 +12,7 @@ class IgniteGCTest extends  DfsGarbageCollectorTest[IgniteRepo] with IgniteTestB
     repo.clear()
   }
 }
-
+/*
 object IgniteGCTest extends IgniteTestBase {
   @BeforeClass
   def beforeClass(): Unit = {
@@ -22,5 +22,5 @@ object IgniteGCTest extends IgniteTestBase {
   def afterClass(): Unit = {
     this.stop()
   }
-}
+}*/
 

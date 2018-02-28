@@ -13,13 +13,3 @@ class IgniteRepoTest extends TestRepositoryTest[IgniteRepo] with IgniteTestBase 
 }
 
 
-object IgniteRepoTest extends IgniteTestBase {
-  @BeforeClass
-  def beforeClass(): Unit = {
-    this.start()
-  }
-  @AfterClass
-  def afterClass(): Unit = {
-    this.stop()
-  }
-}

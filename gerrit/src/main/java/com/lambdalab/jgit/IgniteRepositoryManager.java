@@ -40,6 +40,7 @@ public class IgniteRepositoryManager extends JGitRepositoryManager<IgniteRepo> {
     boolean clientMode = "true".equalsIgnoreCase(config.getString(CLIENT_MODE));
     IgniteConfiguration cfg = new IgniteConfiguration();
     cfg.setClientMode(clientMode);
+    cfg.setPeerClassLoadingEnabled(true);
     if (!clientMode) {
       String storagePath = config.getString(STORAGE_PATH);
       if(storagePath!=null) {
