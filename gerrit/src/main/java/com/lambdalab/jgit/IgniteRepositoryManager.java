@@ -31,7 +31,7 @@ public class IgniteRepositoryManager extends JGitRepositoryManager<IgniteRepo> {
 
   @Override
   public void stop() {
-
+     ((IgniteRepoManager)repoManager).ignite().close();
   }
 
   @Override

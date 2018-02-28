@@ -40,7 +40,7 @@ trait IgniteTestBase {
 
   def stop(): Unit = {
     // DockerTool.stopContainer(container)
-    Ignition.stop(true)
+    Ignition.stopAll(false)
   }
 }
 
