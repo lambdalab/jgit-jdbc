@@ -20,7 +20,7 @@ trait IgniteTestBase {
     finder.setAddresses(Collections.singleton("127.0.0.1"))
     spi.setIpFinder(finder)
     cfg.setDiscoverySpi(spi)
-    //    cfg.setPeerClassLoadingEnabled(true)
+    cfg.setPeerClassLoadingEnabled(true)
     new IgniteRepoManager(cfg)
   }
 

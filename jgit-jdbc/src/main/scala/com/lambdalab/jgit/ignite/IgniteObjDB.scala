@@ -6,11 +6,10 @@ import javax.cache.Cache
 
 import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
 import io.netty.buffer.{ByteBuf, Unpooled}
-import org.apache.ignite.{Ignite, IgniteCache}
-import org.apache.ignite.cache.CacheEntry
+import org.apache.ignite.binary.BinaryObject
 import org.apache.ignite.cache.query.ScanQuery
-import org.apache.ignite.internal.util.lang.gridfunc.ClusterNodeGetIdClosure
-import org.apache.ignite.lang.{IgniteBiPredicate, IgniteClosure}
+import org.apache.ignite.lang.IgniteBiPredicate
+import org.apache.ignite.{Ignite, IgniteCache}
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
 import org.eclipse.jgit.internal.storage.pack.PackExt
@@ -33,11 +32,28 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
 
   val chunkSize = 512 * 1024
 
-  val seq = repo.ignite.atomicSequence(s"${repo.getDescription.getRepositoryName}_seq", 1, true)
   private val packCacheName = s"${repo.getDescription.getRepositoryName}_packs"
-  val packs = repo.ignite.getOrCreateCache[Long, Pack](packCacheName)
-  val packFiles = repo.ignite.getOrCreateCache[String, PackFile](s"${packCacheName}_files")
+  val packs: IgniteCache[Long, BinaryObject] =
+    repo.ignite.getOrCreateCache(packCacheName).withKeepBinary()
+  val packFiles:IgniteCache[String, BinaryObject] =
+    repo.ignite.getOrCreateCache[String, BinaryObject](s"${packCacheName}_files").withKeepBinary()
   val packChunks = repo.ignite.getOrCreateCache[String, Array[Byte]](s"${packCacheName}_chunks")
+
+  implicit def bin2Pack(bin: BinaryObject): Pack = {
+    Pack(bin.field("id"), bin.field("source"), bin.field("committed"), bin.field("estimatedPackSize"))
+  }
+
+  implicit def Pack2bin(pack: Pack): BinaryObject = {
+    ignite.binary().toBinary(pack)
+  }
+
+  implicit def bin2File(bin: BinaryObject): PackFile = {
+    PackFile(bin.field("id"), bin.field("ext"), bin.field("size"))
+  }
+
+  implicit def file2bin(f: PackFile): BinaryObject = {
+    ignite.binary().toBinary(f)
+  }
 
   def clear() = {
     packChunks.clear()
@@ -72,16 +88,16 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
 
   private def getFiles(id: Long) = {
     packFiles.query(
-      new ScanQuery[String, PackFile](
-        new IgniteBiPredicate[String, PackFile] {
-          override def apply(key: String, value: PackFile): Boolean = key.startsWith(id.toString)
+      new ScanQuery[String, BinaryObject](
+        new IgniteBiPredicate[String, BinaryObject] {
+          override def apply(key: String, value: BinaryObject): Boolean = key.startsWith(id.toString)
         })
     ).getAll.asScala.map(_.getValue).toSet
   }
 
   override def listPacks(): util.List[DfsPackDescription] = {
-    packs.query(new ScanQuery[Long, Pack](new IgniteBiPredicate[Long, Pack] {
-      override def apply(k: Long, v: Pack): Boolean = v.committed
+    packs.query(new ScanQuery[Long, BinaryObject](new IgniteBiPredicate[Long, BinaryObject] {
+      override def apply(k: Long, v: BinaryObject): Boolean = v.field("committed")
     })).getAll.asScala.map {
       e =>
         val desc = new IgnitePackDescription(e.getValue).asInstanceOf[DfsPackDescription]
@@ -131,7 +147,7 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
           packChunks.put(key, newBytes)
         }
 
-        val f = packFiles.getAndPutIfAbsent(fileKey, PackFile(id, ext, 0))
+        val f: PackFile = packFiles.getAndPutIfAbsent(fileKey, PackFile(id, ext, 0))
         if (current.end > f.size) {
           f.size = current.end
         }
@@ -141,7 +157,7 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
   }
 
   override def newPack(packSource: DfsObjDatabase.PackSource): DfsPackDescription = {
-    val id = seq.incrementAndGet()
+    val id = repo.incAndGetSeq()
     val pack = new Pack(id, packSource.name(), false, 0)
     packs.put(id, pack)
     new IgnitePackDescription(pack)
@@ -150,16 +166,18 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
   override def commitPackImpl(desc: util.Collection[DfsPackDescription],
                               replaces: util.Collection[DfsPackDescription]): Unit = {
     val saves = desc.asScala.map(_.asInstanceOf[IgnitePackDescription]).toSet
-    val deletes = if (replaces == null) Nil.toSet.asJava else
-      replaces.asScala.map(_.asInstanceOf[IgnitePackDescription].pack.id).toSet.asJava
+    val deletes= new util.HashSet[Long]()
+    if(replaces!=null) {
+      replaces.asScala.foreach(r => deletes.add(r.asInstanceOf[IgnitePackDescription].pack.id))
+    }
     withTx {
       _ =>
         packs.clearAll(deletes)
-        deleteFromCache[String, PackFile](packFiles, (_, v) => deletes.contains(v.id))
         deleteFromCache[String, Array[Byte]](packChunks, { (k, _) =>
           val id = k.split('_').head.toLong
           deletes.contains(id)
         })
+        deleteFromCache[String, BinaryObject](packFiles, (_, v) => deletes.contains(v.field("id")))
         saves.foreach(p => {
           packs.replace(p.pack.id, Pack(p.pack.id, p.getPackSource.name(), true, p.getEstimatedPackSize))
         })
@@ -170,8 +188,8 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
     val cursor = cache.query(new ScanQuery[K, V](new IgniteBiPredicate[K, V] {
       override def apply(k: K, v: V): Boolean = pred(k, v)
     }))
-    cursor.forEach(new Consumer[Cache.Entry[K,V]] {
-      override def accept(e: Cache.Entry[K,V]): Unit = cache.remove(e.getKey)
+    cursor.forEach(new Consumer[Cache.Entry[K, V]] {
+      override def accept(e: Cache.Entry[K, V]): Unit = cache.remove(e.getKey)
     })
     cursor.close()
   }

@@ -6,10 +6,10 @@ import com.lambdalab.jgit.JGitRepoManager
 import org.apache.ignite.{Ignite, Ignition}
 import org.apache.ignite.configuration.{CollectionConfiguration, IgniteConfiguration}
 
-class IgniteRepoManager(cfg: IgniteConfiguration) extends JGitRepoManager[IgniteRepo] with IgniteTxSupport {
+class IgniteRepoManager(cfg: IgniteConfiguration) extends JGitRepoManager[IgniteRepo] {
 
   lazy val ignite: Ignite = Ignition.getOrStart(cfg)
-  lazy val repos = ignite.set[String]("repos", new CollectionConfiguration().setCollocated(false))
+  lazy val repos = ignite.getOrCreateCache[String,Boolean]("repos")
 
   override def init(): Unit = {
     if(!ignite.active())
@@ -17,21 +17,17 @@ class IgniteRepoManager(cfg: IgniteConfiguration) extends JGitRepoManager[Ignite
   }
 
   override def isRepoExists(name: String): Boolean = {
-    repos.contains(name)
+    getRepo(name).exists()
   }
 
-  override def createRepo(name: String): IgniteRepo = withTx { _ =>
-    repos.add(name)
+  override def createRepo(name: String): IgniteRepo = {
+    val repo = getRepo(name)
+    repo.create(false)
+    repo
+  }
+
+  override def openRepo(name: String): IgniteRepo =  {
     getRepo(name)
-  }
-
-  override def openRepo(name: String): IgniteRepo = withTx {
-    _ =>
-      if (isRepoExists(name)) {
-        getRepo(name)
-      } else {
-        null
-      }
   }
 
   private def getRepo(name: String) = {
@@ -44,8 +40,6 @@ class IgniteRepoManager(cfg: IgniteConfiguration) extends JGitRepoManager[Ignite
   override def deleteRepo(name: String): Unit = {
     if (isRepoExists(name)) {
       val repo = getRepo(name)
-      repo.clearRepo()
-      repos.remove(name)
       repo.delete()
     }
   }
@@ -53,11 +47,11 @@ class IgniteRepoManager(cfg: IgniteConfiguration) extends JGitRepoManager[Ignite
   override def allRepoNames(): util.Iterator[String] with AutoCloseable = {
     val it = repos.iterator()
     new util.Iterator[String] with AutoCloseable {
-      override def next(): String = it.next()
+      override def next(): String = it.next().getKey
 
       override def hasNext: Boolean = it.hasNext
 
-      override def close(): Unit = repos.close()
+      override def close(): Unit = {}
     }
   }
 }
