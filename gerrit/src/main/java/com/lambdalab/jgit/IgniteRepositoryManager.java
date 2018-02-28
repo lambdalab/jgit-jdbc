@@ -31,7 +31,7 @@ public class IgniteRepositoryManager extends JGitRepositoryManager<IgniteRepo> {
 
   @Override
   public void stop() {
-     ((IgniteRepoManager)repoManager).ignite().close();
+    ((IgniteRepoManager) repoManager).ignite().close();
   }
 
   @Override
@@ -43,17 +43,17 @@ public class IgniteRepositoryManager extends JGitRepositoryManager<IgniteRepo> {
     cfg.setPeerClassLoadingEnabled(true);
     if (!clientMode) {
       String storagePath = config.getString(STORAGE_PATH);
-      if(storagePath!=null) {
-        DataStorageConfiguration storageCfg = new DataStorageConfiguration();
+      DataStorageConfiguration storageCfg = new DataStorageConfiguration();
+      storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
+      if (storagePath != null) {
         storageCfg.setStoragePath(storagePath);
-        storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
-        cfg.setDataStorageConfiguration(storageCfg);
       }
+      cfg.setDataStorageConfiguration(storageCfg);
     }
     String ipFinder = config.getString(IP_FINDER);
-    if(ipFinder!=null) {
-      TcpDiscoverySpi spi=new TcpDiscoverySpi();
-      if(ipFinder.equals(K8_FINDER)){
+    if (ipFinder != null) {
+      TcpDiscoverySpi spi = new TcpDiscoverySpi();
+      if (ipFinder.equals(K8_FINDER)) {
         spi.setIpFinder(new TcpDiscoveryKubernetesIpFinder());
       } else {
         String[] addresses = ipFinder.split("[\\s,;]");

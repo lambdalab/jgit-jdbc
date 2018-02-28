@@ -91,7 +91,8 @@ class IgniteRepo(builder: IgniteRepoBuilder) extends DfsRepository(builder) with
   }
 
   override def setGitwebDescription(description: String): Unit = {
-    descriptions.put(repoName, description)
+    if (description != null)
+      descriptions.put(repoName, description)
   }
 
   override def getGitwebDescription: String = {
