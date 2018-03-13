@@ -90,7 +90,7 @@ trait References extends SQLSyntaxSupport[Reference] {
     val r = this.syntax("r")
     withSQL {
       select.from(this as r).where(sqls.eq(r.repo, repoName)).orderBy(r.name)
-    }.map(this (r)).list().apply()
+    }.map(this.apply(r)).list().apply()
   }
 
   def clearTable()(implicit dBSession: DBSession): Unit = withSQL {

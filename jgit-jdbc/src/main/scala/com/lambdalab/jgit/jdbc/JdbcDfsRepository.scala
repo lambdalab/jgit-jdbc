@@ -6,7 +6,7 @@ import java.text.MessageFormat
 import com.lambdalab.jgit.jdbc.schema.JdbcSchemaSupport
 import org.eclipse.jgit.internal.JGitText
 import org.eclipse.jgit.internal.storage.dfs.{DfsObjDatabase, DfsRepository, DfsRepositoryBuilder}
-import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate}
+import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate, StoredConfig}
 
 abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositoryBuilder[_, _], _ <: DfsRepository])
     extends DfsRepository(builder) with JdbcSchemaSupport with ClearableRepo {
@@ -18,6 +18,12 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
   override def setGitwebDescription(description: String): Unit = {
     // for gerrit
   }
+  private lazy val config = {
+    val c = new JdbcRepoConfig(this)
+    c.load()
+    c
+  }
+  override def getConfig: StoredConfig = config
 
   private val objDatabase = new JdbcDfsObjDatabase(this)
   private val refDatabase = new JdbcDfsRefDatabase(this)

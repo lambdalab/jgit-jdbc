@@ -10,6 +10,7 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
   lazy val packDataTableName = s"`${tablePrefix}_packs_data`"
   lazy val packFileTableName = s"`${tablePrefix}_packs_files`"
   lazy val refsTableName = s"`${tablePrefix}_refs`"
+  lazy val configsTableName: String = s"`${tablePrefix}_configs`"
 
   private def unquote(tableName:String) = tableName.replaceAll("`","")
   override def createPackTable(conn: Connection) = {
@@ -51,7 +52,7 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
   override def createRefTable(conn: Connection) = {
 
       val createTable =
-        s"""CREATE TABLE IF NOT EXISTS $refsTableName (
+      s"""CREATE TABLE IF NOT EXISTS $refsTableName (
            `repo` VARCHAR(255) NOT NULL,
            `name` VARCHAR(255) NOT NULL,
            `object_id` varchar(40) DEFAULT NULL,
@@ -61,6 +62,14 @@ trait MysqlSchemaSupport extends JdbcSchemaSupport {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8;"""
     conn.setReadOnly(false)
     conn.prepareStatement(createTable).executeUpdate()
+    val createConfigsTable =
+      s"""CREATE TABLE IF NOT EXISTS $configsTableName (
+           `repo` VARCHAR(255) NOT NULL,
+           `config` TEXT NOT NULL,
+           PRIMARY KEY(`repo`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;"""
+    conn.setReadOnly(false)
+    conn.prepareStatement(createConfigsTable).executeUpdate()
    }
 
 

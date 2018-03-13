@@ -1,8 +1,7 @@
 package com.lambdalab.jgit.jdbc.schema
 
-import java.sql.{Blob, Connection, ResultSet}
+import java.sql.Connection
 
-import org.eclipse.jgit.internal.storage.dfs.DfsOutputStream
 import scalikejdbc._
 
 trait JdbcSchemaSupport {
@@ -25,6 +24,8 @@ trait JdbcSchemaSupport {
   def packFileTableName: String
 
   def refsTableName: String
+
+  def configsTableName: String
 
   def getUpsertSql(tableName: String,
                    columns: String,
@@ -51,6 +52,7 @@ trait JdbcSchemaDelegate extends JdbcSchemaSupport {
 
   def packFileTableName: String = delegate.packFileTableName
 
+  def configsTableName: String= delegate.configsTableName
 
   def refsTableName: String = delegate.refsTableName
 

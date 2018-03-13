@@ -11,6 +11,8 @@ trait PostgresSchemaSupport extends JdbcSchemaSupport{
   lazy val packFileTableName = s"${tablePrefix}_packs_files"
   lazy val refsTableName = s"${tablePrefix}_refs"
 
+  lazy val configsTableName: String = s"${tablePrefix}_configs"
+
   override def isTableExists(tableName: String,conn: Connection) = db localTx {
     implicit s =>
       sql"select * from pg_tables where tablename = ${tableName};"
@@ -63,6 +65,13 @@ trait PostgresSchemaSupport extends JdbcSchemaSupport{
             PRIMARY KEY (repo, name)
       )"""
     conn.prepareStatement(createTable).execute()
+    val createConfigsTable =
+      s"""CREATE TABLE IF NOT EXISTS "$refsTableName" (
+            repo varchar(255) NOT NULL,
+            config text NOT NULL DEFAULT '',
+            PRIMARY KEY (repo)
+      )"""
+    conn.prepareStatement(createConfigsTable).execute()
   }
 
   override def getUpsertSql(tableName: String,

@@ -80,7 +80,7 @@ abstract public class TestRepositoryTest<T extends Repository> {
   private RevWalk rw;
 
   abstract protected JGitRepoManager<T> repoManager();
-  String repoName = "test";
+  public String repoName = "test";
 
   @Test
   public void testManager() {

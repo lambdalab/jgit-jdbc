@@ -1,13 +1,13 @@
 package com.lambdalab.jgit.jdbc.test
 
-import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlRepoBuilder, MysqlRepoManager}
+import com.lambdalab.jgit.jdbc.{JdbcDfsRepository, MysqlRepoManager}
 import scalikejdbc.{ConnectionPool, NamedDB}
 
 trait TiDBRepoTestBase {
   var dfsRepo: JdbcDfsRepository =_
 
   protected def repoManager(): MysqlRepoManager = {
-    new MysqlRepoManager(NamedDB('tidb))
+    new MysqlRepoManager(NamedDB(ConnectionPool.DEFAULT_NAME))
   }
 
 
@@ -31,7 +31,7 @@ trait TiDBRepoTestBase {
 
   def initJdbc() = {
     Class.forName("com.mysql.jdbc.Driver")
-    ConnectionPool.add('tidb, url, user, password)
+    ConnectionPool.singleton(url, user, password)
   }
 
   def stop() : Unit = {

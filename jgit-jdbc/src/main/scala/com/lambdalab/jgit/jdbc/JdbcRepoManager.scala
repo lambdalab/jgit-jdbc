@@ -91,9 +91,16 @@ object JdbcRepoManager {
     ConnectionPool.singleton(url,username,password)
     new MysqlRepoManager(NamedDB(ConnectionPool.DEFAULT_NAME))
   }
+  def createPostgres(url: String, username:String, password: String)= {
+    ConnectionPool.singleton(url,username,password)
+    new PostgresRepoManager(NamedDB(ConnectionPool.DEFAULT_NAME))
+  }
 }
 class MysqlRepoManager(val db: NamedDB) extends JdbcRepoManager[MysqlDfsRepository] with MysqlSchemaSupport{
-
+  def this(url: String, user:String, password: String) {
+    this(NamedDB(ConnectionPool.DEFAULT_NAME))
+    ConnectionPool.singleton(url,user,password)
+  }
   override def tablePrefix: String = "t"
 
   override def openRepo(name: String): MysqlDfsRepository = {
