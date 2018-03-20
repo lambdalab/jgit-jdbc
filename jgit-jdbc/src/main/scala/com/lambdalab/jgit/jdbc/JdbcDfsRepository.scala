@@ -7,6 +7,7 @@ import com.lambdalab.jgit.jdbc.schema.JdbcSchemaSupport
 import org.eclipse.jgit.internal.JGitText
 import org.eclipse.jgit.internal.storage.dfs.{DfsObjDatabase, DfsRepository, DfsRepositoryBuilder}
 import org.eclipse.jgit.lib.{Constants, RefDatabase, RefUpdate, StoredConfig}
+import org.eclipse.jgit.util.FS
 
 abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositoryBuilder[_, _], _ <: DfsRepository])
     extends DfsRepository(builder) with JdbcSchemaSupport with ClearableRepo {
@@ -31,6 +32,12 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
   override def getObjectDatabase: DfsObjDatabase = objDatabase
 
   override val getRefDatabase: RefDatabase = refDatabase
+
+  lazy val fs = FS.detect()
+
+  override def getFS: FS = {
+    fs
+  }
 
   override def exists(): Boolean = db localTxWithConnection {
     conn =>
