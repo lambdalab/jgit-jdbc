@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import io.netty.buffer.ByteBuf
 import org.eclipse.jgit.internal.storage.dfs.ReadableChannel
 
-abstract class ChunkedReadableChannel(chunkSize: Int) extends ReadableChannel {
+abstract class ChunkedReadableChannel(chunkSize: Int, localDiskCache: LocalDiskCache) extends ReadableChannel {
 
   override def setReadAheadBytes(bufferSize: Int): Unit = getChunkByPos
 
@@ -19,15 +19,13 @@ abstract class ChunkedReadableChannel(chunkSize: Int) extends ReadableChannel {
     pos = newPosition
   }
 
-  def readChunk(chunk: Int): ByteBuf
-
   private var currentChunk = -1
   private var currentBuff: ByteBuf = _
 
   def getChunkByPos: ByteBuf = {
     val chunk = (pos / chunkSize).toInt
     if (chunk != currentChunk) {
-      currentBuff = readChunk(chunk)
+      currentBuff = localDiskCache.get(chunk)
       currentBuff.readerIndex((pos % chunkSize).toInt)
       currentChunk = chunk
     }

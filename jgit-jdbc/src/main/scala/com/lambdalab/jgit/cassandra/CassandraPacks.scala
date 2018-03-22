@@ -3,7 +3,7 @@ package com.lambdalab.jgit.cassandra
 import java.util.UUID
 
 import com.datastax.driver.core.BatchStatement
-import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
+import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel, LocalFileCacheSupport}
 import io.netty.buffer.{ByteBuf, Unpooled}
 import org.eclipse.jgit.internal.storage.dfs.{DfsOutputStream, ReadableChannel}
 
@@ -42,12 +42,11 @@ object CassandraPacks {
     }
   }
 }
-trait CassandraPacks {
+
+trait CassandraPacks extends LocalFileCacheSupport {
   self: CassandraContext =>
 
   val chunkSize = 1024 * 100
-
-
 
   def insertNew(repo: String, source: String): Pack = {
     val cql = """insert into packs(repo,id,source,committed) values(?,?,?,false)"""
@@ -143,38 +142,31 @@ trait CassandraPacks {
   }
 
   def readPack(repo: String, id: UUID, ext: String): ReadableChannel = {
-    new ChunkedReadableChannel(chunkSize) {
+    new ChunkedReadableChannel(chunkSize, getFileCache(id.toString, ext)) {
       private lazy val _size = {
         val cql = """select max(end) from packs_data where repo = ? and id = ? and ext = ?"""
         execute(cql)(_.bind(repo, id, ext)).one().getLong(0)
       }
 
       override def size(): Long = _size
-
-      override def readChunk(chunk: Int): ByteBuf = {
-        val cql = """select data from packs_data where repo = ? and id = ? and ext = ? and chunk = ?"""
-
-        val bb = execute(cql)(_.bind(repo, id, ext, Integer.valueOf(chunk))).one().getBytes(0)
-        Unpooled.wrappedBuffer(bb)
-      }
     }
   }
 
+  def loadChunk(repo: String, id: String, ext: String, chunk: Int): ByteBuf = {
+    val cql = """select data from packs_data where repo = ? and id = ? and ext = ? and chunk = ?"""
+
+    val bb = execute(cql)(_.bind(repo, id, ext, Integer.valueOf(chunk))).one().getBytes(0)
+    Unpooled.wrappedBuffer(bb)
+  }
+
   def writePack(repo: String, id: UUID, ext: String): DfsOutputStream = {
-    new ChunkedDfsOutputStream(chunkSize) {
+    new ChunkedDfsOutputStream(chunkSize, getFileCache(id.toString,ext)) {
       def flushBuffer(h: BufHolder): Unit = {
         val BufHolder(buf, chunk) = h
         val cql =
           """update packs_data set data = ? , end = ?
               where repo = ? and id = ? and ext = ? and chunk = ?"""
         execute(cql)(_.bind(buf.nioBuffer(), java.lang.Long.valueOf(h.end), repo, id, ext, Integer.valueOf(chunk)))
-      }
-
-      override def readFromDB(chunk: Int): ByteBuf = {
-        val bb = execute("""select data from packs_data where repo = ? and id = ? and ext = ? and chunk = ?""") {
-          _.bind(repo, id, ext, Integer.valueOf(chunk))
-        }.one().getBytes(0)
-        Unpooled.wrappedBuffer(bb)
       }
     }
   }

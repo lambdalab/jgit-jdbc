@@ -5,19 +5,19 @@ import java.nio.ByteBuffer
 import io.netty.buffer.Unpooled
 import org.eclipse.jgit.internal.storage.dfs.DfsOutputStream
 
-abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStream {
+abstract class ChunkedDfsOutputStream(val chunkSize: Int, localDiskCache: LocalDiskCache) extends DfsOutputStream {
 
   import io.netty.buffer.ByteBuf
 
  
   case class BufHolder(buf: ByteBuf, chunk: Int) {
+
     def offset =  chunkSize.toLong * chunk
     def end = offset + buf.writerIndex()
+    def isFull(): Boolean = buf.writerIndex() >= chunkSize
   }
 
   var current = BufHolder(Unpooled.buffer(chunkSize), 0)
-
-  def readFromDB(chunk: Int): ByteBuf
 
   override def read(position: Long, buf: ByteBuffer): Int = {
     var read = 0
@@ -25,7 +25,7 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStrea
       val pos = position + read
       if (pos < current.offset) {
         val idx = pos / chunkSize
-        val readBuf = readFromDB(idx.toInt)
+        val readBuf =   localDiskCache.get(idx.toInt)
         read += readFrom(buf, readBuf)
       } else if (pos >= current.offset && pos < current.end) {
         read += readFrom(buf, current.buf)
@@ -61,12 +61,17 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int) extends DfsOutputStrea
 
   def flushBuffer(current: BufHolder): Unit
 
+  private def flushCache(current: BufHolder) =  localDiskCache.put(current.chunk,current.buf)
+
   override def flush() = {
+    if(current.isFull())
+      flushCache(current)
     flushBuffer(current)
   }
 
   override def close(): Unit = {
-    flush()
+    flushCache(current)
+    flushBuffer(current)
     super.close()
   }
 }

@@ -33,6 +33,7 @@ trait MysqlRepoTestBase {
 
   def initJdbc() = {
     Class.forName("com.mysql.jdbc.Driver")
+    ConnectionPool.add(ConnectionPool.DEFAULT_NAME, url, user, password)
     ConnectionPool.add('mysql, url, user, password)
   }
 

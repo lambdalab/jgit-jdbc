@@ -3,6 +3,7 @@ package com.lambdalab.jgit.cassandra
 import java.util
 import java.util.UUID
 
+import io.netty.buffer.ByteBuf
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
 import org.eclipse.jgit.internal.storage.pack.PackExt
@@ -13,6 +14,8 @@ class CassandraObjDB(val repo: CassandraDfsRepo) extends DfsObjDatabase(repo, ne
 
   val packs = new CassandraPacks with CassandraContext {
     val settings = repo.cassandraSettings
+
+    override def loadChunk(id: String, ext: String, chunk: Int): ByteBuf = loadChunk(repo.getDescription.getRepositoryName, id, ext, chunk)
   }
 
   val repoName = repo.getDescription.getRepositoryName

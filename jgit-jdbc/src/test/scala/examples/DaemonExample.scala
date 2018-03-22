@@ -21,6 +21,7 @@ import org.eclipse.jgit.internal.storage.file.FileRepository
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.transport.resolver.RepositoryResolver
 import org.eclipse.jgit.transport.{Daemon, DaemonClient}
+import scalikejdbc.ConnectionPool
 
 object DaemonExample extends RepositoryResolver[DaemonClient] {
 
@@ -94,7 +95,7 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
       case "tidb" =>
         val r = new MysqlRepoBuilder()
             .setRepoName(repo)
-            .setDBName('tidb)
+            .setDBName(ConnectionPool.DEFAULT_NAME)
             .setBare()
             .build()
         if (create && !r.exists())

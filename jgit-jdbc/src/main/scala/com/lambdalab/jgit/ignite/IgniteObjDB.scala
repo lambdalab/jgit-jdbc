@@ -2,9 +2,9 @@ package com.lambdalab.jgit.ignite
 
 import java.util
 import java.util.function.Consumer
-import javax.cache.Cache
 
-import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel}
+import javax.cache.Cache
+import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel, LocalFileCacheSupport}
 import io.netty.buffer.{ByteBuf, Unpooled}
 import org.apache.ignite.binary.BinaryObject
 import org.apache.ignite.cache.query.ScanQuery
@@ -26,7 +26,7 @@ case class PackFile(id: Long,
                     ext: String,
                     var size: Long)
 
-class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsReaderOptions) with IgniteTxSupport {
+class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsReaderOptions) with IgniteTxSupport with LocalFileCacheSupport{
 
   override def ignite: Ignite = repo.ignite
 
@@ -71,18 +71,11 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
     val pack = desc.asInstanceOf[IgnitePackDescription].pack
     val ext = packExt.getExtension
     val file = packFiles.get(s"${pack.id}_$ext")
-    new ChunkedReadableChannel(chunkSize) {
+    new ChunkedReadableChannel(chunkSize, getFileCache(pack.id.toString,ext)) {
       private lazy val _size = {
         file.size
       }
-
       override def size(): Long = _size
-
-      override def readChunk(chunk: Int): ByteBuf = {
-        val key = s"${pack.id}_${ext}_$chunk"
-        val bytes = packChunks.get(key)
-        Unpooled.wrappedBuffer(bytes)
-      }
     }
   }
 
@@ -124,12 +117,7 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
     val fileKey = s"${id}_$ext"
     val packFile = packFiles.getAndPutIfAbsent(fileKey, new PackFile(id, ext, 0))
 
-    new ChunkedDfsOutputStream(chunkSize) {
-      override def readFromDB(chunk: Int): ByteBuf = {
-        val key = s"${id}_${ext}_$chunk"
-        val bytes = packChunks.get(key)
-        Unpooled.wrappedBuffer(bytes)
-      }
+    new ChunkedDfsOutputStream(chunkSize, getFileCache(id.toString, ext)) {
 
       override def flushBuffer(current: BufHolder): Unit = withTx { _ =>
 
@@ -207,6 +195,11 @@ class IgniteObjDB(val repo: IgniteRepo) extends DfsObjDatabase(repo, new DfsRead
     }
   }
 
+  override def loadChunk(id: String, ext: String, chunk: Int): ByteBuf = {
+      val key = s"${id}_${ext}_$chunk"
+      val bytes = packChunks.get(key)
+      Unpooled.wrappedBuffer(bytes)
+  }
 }
 
 

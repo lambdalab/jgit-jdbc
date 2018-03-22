@@ -59,7 +59,7 @@ jmhReport {
   jmhReportOutput = project.file('build/reports/jmh')
 }
 jmh {
-  include = ['ReadFileBenchmark','PushBenchmark', 'ChangeRefBenchmark']
+  include = ['PushBenchmark', ]
   resultFormat = 'json'
   jvmArgs=['-Xmx2G','-Xms2G']
 }
@@ -67,7 +67,7 @@ publishing {
   publications {
     MyPublication(MavenPublication) {
       from components.java
-      version "0.0.1"
+      version "0.0.3"
     }
   }
 }
@@ -83,7 +83,7 @@ bintray {
     licenses = ['Apache-2.0']
     vcsUrl = 'https://github.com/lambdalab/jgit-jdbc.git'
     version {
-      name = "0.0.1"
+      name = "0.0.3"
     }
   }
 }

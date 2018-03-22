@@ -73,6 +73,7 @@ abstract class JdbcDfsRepository(builder: DfsRepositoryBuilder[_ <: DfsRepositor
   def clear(): Unit = {
     refDatabase.clear()
     objDatabase.clear()
+    config.clear()
 
   }
 }

@@ -3,6 +3,7 @@ package tests.cassandra
 import java.nio.ByteBuffer
 
 import com.lambdalab.jgit.cassandra._
+import io.netty.buffer.ByteBuf
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription
 import org.junit.Assert._
 import org.junit.{Before, Test}
@@ -13,6 +14,8 @@ class CassandraDaoTest extends CassandraTestBase {
 
   val packs= new CassandraPacks with CassandraContext {
     override val settings: CassandraSettings = cassandraSettings
+
+    override def loadChunk(id: String, ext: String, chunk: Int): ByteBuf = ???
   }
   val refs = new CassandraRefs with CassandraContext {
     override val settings: CassandraSettings = cassandraSettings

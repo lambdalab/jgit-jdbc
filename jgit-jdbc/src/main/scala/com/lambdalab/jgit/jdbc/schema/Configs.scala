@@ -14,6 +14,12 @@ trait Configs extends SQLSyntaxSupport[TextConfig] {
       config = rs.string(r.config))
   def apply(r: SyntaxProvider[TextConfig])(rs: WrappedResultSet): TextConfig = apply(r.resultName)(rs)
 
+  def clear(implicit session: DBSession): Unit = {
+    withSQL {
+      delete.from(this).where(sqls.eq(this.column.repo , repoName))
+    }.execute().apply()
+  }
+  
   def saveText(config: String)(implicit session: DBSession) = {
     val sql = getUpsertSql(tableName,
       "repo,config",

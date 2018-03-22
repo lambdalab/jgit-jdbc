@@ -16,10 +16,10 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 @State(Scope.Benchmark)
 public class ChangeRefBenchmark {
-  @Param({ "ignite","tidb", /*"mysql",  "cassandra",*/"mem", "file"})
+  @Param({ "mysql","tidb", /*"mysql",  "cassandra",*/"mem", "file"})
   String engine;
 
-  @Param({"MEDIUM"})
+  @Param({"MEDIUM", "SMALL"})
   String repoName;
 
   File getPath(){

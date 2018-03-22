@@ -1,11 +1,10 @@
 package com.lambdalab.jgit.jdbc
 
 import java.io.InputStream
-import java.sql.Blob
 import java.util
 
 import com.lambdalab.jgit.jdbc.schema.{JdbcSchemaDelegate, JdbcSchemaSupport, Pack, Packs}
-import com.lambdalab.jgit.streams.{ChunkedDfsOutputStream, ChunkedReadableChannel, EmptyReadableChannel}
+import com.lambdalab.jgit.streams._
 import io.netty.buffer.{ByteBuf, Unpooled}
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource
 import org.eclipse.jgit.internal.storage.dfs._
@@ -15,7 +14,7 @@ import scalikejdbc.{DBSession, NamedDB}
 import scala.collection.JavaConverters._
 
 class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
-    extends DfsObjDatabase(repo, new DfsReaderOptions) {
+    extends DfsObjDatabase(repo, new DfsReaderOptions) with LocalFileCacheSupport {
 
   def db: NamedDB = repo.db
 
@@ -36,11 +35,7 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
     }
     fileOption.map {
       f =>
-        new ChunkedReadableChannel(chunkSize) {
-          override def readChunk(chunk: Int): ByteBuf = db readOnly { implicit s =>
-              val data = packs.getData(id, ext, chunk)
-              data.map(p => readStream(p.data)).getOrElse(Unpooled.EMPTY_BUFFER)
-          }
+        new ChunkedReadableChannel(chunkSize, getFileCache(id, ext)) {
           override def size(): Long = f.size
         }
     }.getOrElse(EmptyReadableChannel)
@@ -72,14 +67,7 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
       implicit s =>
         packs.initFile(id, ext)
     }
-    val os = new ChunkedDfsOutputStream(chunkSize) {
-      override def readFromDB(chunk: Int): ByteBuf = {
-        db readOnly {
-          implicit s =>
-            packs.getData(id, ext, chunk).map(p => readStream(p.data)).getOrElse(Unpooled.EMPTY_BUFFER)
-        }
-      }
-
+    val os = new ChunkedDfsOutputStream(chunkSize, getFileCache(id, ext)) {
       override def flushBuffer(current: BufHolder): Unit = {
         db localTx {
           implicit s =>
@@ -119,6 +107,19 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   def clear() = db localTx {
     implicit s =>
       packs.clearTable()
+  }
+
+  override def loadChunk(id: String, ext: String, chunk: Int): ByteBuf = {
+    db readOnly {
+      implicit s =>
+        val data = packs.getData(id, ext, chunk)
+        data.map(p => readStream(p.data)).getOrElse(Unpooled.EMPTY_BUFFER)
+    }
+  }
+
+  override def close(): Unit = {
+    super.close()
+    closeCaches()
   }
 }
 
