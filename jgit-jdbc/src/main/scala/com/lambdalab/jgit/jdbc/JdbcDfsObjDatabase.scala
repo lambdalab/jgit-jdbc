@@ -42,7 +42,7 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   }
 
   private def readStream(is: InputStream) = {
-    val buf = Unpooled.buffer()
+    val buf = Unpooled.buffer(chunkSize)
     buf.writeBytes(is, chunkSize)
     is.close()
     buf

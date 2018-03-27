@@ -22,12 +22,15 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
   val file = new RandomAccessFile(builder.file, "rw")
   val chunkSize = builder.chunkSize
 
+  import java.util.concurrent.locks.ReentrantLock
+
+  val lock = new ReentrantLock
   private val chunkSet = new java.util.BitSet()
 
   private def writeChunk(chunk: Int, buf: ByteBuf) = {
     withLock {
       val pos = chunk * chunkSize
-      file.seek(pos + buf.readerIndex())
+      file.getChannel().position(pos + buf.readerIndex())
       buf.markReaderIndex()
       buf.readBytes(file.getChannel,buf.readableBytes())
       buf.resetReaderIndex()
@@ -40,17 +43,23 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
       readChunk(chunk)
     } else {
       val buf = loader(chunk)
-      writeChunk(chunk, buf)
+      try {
+        writeChunk(chunk, buf)
+      } catch {
+        case ex: Throwable => ex.printStackTrace()
+      }
       buf
     }
   }
 
   private def withLock[T](f: => T): T = {
-    val lock = file.getChannel.lock()
+    lock.lock() // file lock is shared within jvm , so we need another lock to guard it
+    val flock = file.getChannel.lock()
     try {
       f
     } finally {
-      lock.release()
+      flock.release()
+      lock.unlock()
     }
   }
 
@@ -58,7 +67,7 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
     val pos = chunk * chunkSize
     withLock {
       val buf = Unpooled.buffer(chunkSize)
-      file.seek(pos)
+      file.getChannel.position(pos)
       buf.writeBytes(file.getChannel, chunkSize)
       buf
     }

@@ -26,9 +26,9 @@ abstract class ChunkedReadableChannel(chunkSize: Int, localDiskCache: LocalDiskC
     val chunk = (pos / chunkSize).toInt
     if (chunk != currentChunk) {
       currentBuff = localDiskCache.get(chunk)
-      currentBuff.readerIndex((pos % chunkSize).toInt)
       currentChunk = chunk
     }
+    currentBuff.readerIndex((pos % chunkSize).toInt)
     currentBuff
   }
 
