@@ -1,31 +1,52 @@
 package com.lambdalab.jgit.streams
 
 import java.io.{File, RandomAccessFile}
+import java.nio.channels.FileChannel.MapMode
+import java.util.concurrent.atomic.AtomicInteger
 
 import com.google.common.cache.AbstractLoadingCache
-import com.lambdalab.jgit.streams.LocalDiskCache.{Loader, Builder}
+import com.lambdalab.jgit.streams.LocalDiskCache.{Builder, Loader}
 import io.netty.buffer.{ByteBuf, Unpooled}
 import org.apache.commons.io.FileUtils
 
 object LocalDiskCache {
   type Loader = (Int) => ByteBuf
 
-  case class Builder(file: File, chunkSize: Int, deleteOnClose: Boolean = true) {
+  case class Builder(file: File, chunkSize: Int, deleteOnClose: Boolean = false) {
     def build(loader: Loader): LocalDiskCache = {
       new LocalDiskCache(this, loader)
     }
   }
-
+  val totalCount = new AtomicInteger(0)
+  val hitCount = new AtomicInteger(0)
+  val dbCount = new AtomicInteger(0)
+  def printAndResetCacheRate(): Unit ={
+    val db = dbCount.getAndSet(0)
+    val hit = hitCount.getAndSet(0)
+    val total = totalCount.getAndSet(0)
+    println(s"total cache hit rate  hit:$hit db:$db total:$total ${100.0 * hit / total}%")
+  }
 }
 
 class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCache[Int, ByteBuf] with AutoCloseable {
   val file = new RandomAccessFile(builder.file, "rw")
   val chunkSize = builder.chunkSize
-
+  private val chunksFile = new File(builder.file.getParentFile, builder.file.getName + ".chunks")
+  val chunkSetFile = new RandomAccessFile(chunksFile, "rw")
   import java.util.concurrent.locks.ReentrantLock
+  import LocalDiskCache._
 
   val lock = new ReentrantLock
-  private val chunkSet = new java.util.BitSet()
+  private val chunkSet = {
+    val bytes = new Array[Byte](chunkSetFile.length().toInt)
+    chunkSetFile.readFully(bytes)
+    java.util.BitSet.valueOf(bytes)
+  }
+
+  def writeChunkSet() {
+    chunkSetFile.seek(0)
+    chunkSetFile.write(chunkSet.toByteArray)
+  }
 
   private def writeChunk(chunk: Int, buf: ByteBuf) = {
     withLock {
@@ -35,14 +56,18 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
       buf.readBytes(file.getChannel,buf.readableBytes())
       buf.resetReaderIndex()
       chunkSet.set(chunk)
+      writeChunkSet()
     }
   }
 
   override def get(chunk: Int): ByteBuf = {
+    totalCount.getAndIncrement()
     if (chunkSet.get(chunk)) {
+      hitCount.getAndIncrement()
       readChunk(chunk)
     } else {
       val buf = loader(chunk)
+      dbCount.getAndIncrement()
       try {
         writeChunk(chunk, buf)
       } catch {
@@ -66,10 +91,8 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
   private def readChunk(chunk: Int): ByteBuf = {
     val pos = chunk * chunkSize
     withLock {
-      val buf = Unpooled.buffer(chunkSize)
-      file.getChannel.position(pos)
-      buf.writeBytes(file.getChannel, chunkSize)
-      buf
+      val bb = file.getChannel.map( MapMode.READ_ONLY,pos,chunkSize)
+      Unpooled.wrappedBuffer(bb)
     }
   }
 
@@ -88,6 +111,7 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
     file.close()
     if (builder.deleteOnClose) {
       FileUtils.deleteQuietly(builder.file)
+      FileUtils.deleteQuietly(chunksFile)
     }
   }
 }

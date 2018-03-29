@@ -59,9 +59,10 @@ jmhReport {
   jmhReportOutput = project.file('build/reports/jmh')
 }
 jmh {
-  include = ['PushBenchmark', ]
+  include = ['ReadFileBenchmark', ]
   resultFormat = 'json'
   jvmArgs=['-Xmx2G','-Xms2G']
+  fork = 0
 }
 publishing {
   publications {

@@ -28,7 +28,6 @@ abstract class ChunkedReadableChannel(chunkSize: Int, localDiskCache: LocalDiskC
       currentBuff = localDiskCache.get(chunk)
       currentChunk = chunk
     }
-    currentBuff.readerIndex((pos % chunkSize).toInt)
     currentBuff
   }
 

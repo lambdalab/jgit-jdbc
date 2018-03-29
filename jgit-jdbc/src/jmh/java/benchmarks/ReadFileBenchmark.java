@@ -1,6 +1,7 @@
 package benchmarks;
 
 import com.lambdalab.jgit.jdbc.MysqlRepoManager;
+import com.lambdalab.jgit.streams.LocalDiskCache;
 import examples.DaemonExample;
 import org.apache.commons.lang.math.RandomUtils;
 import org.eclipse.jgit.lib.Ref;
@@ -62,7 +63,9 @@ public class ReadFileBenchmark {
 
   @TearDown
   public void teardown() {
+    this.repository.close();
     DaemonExample.stop();
+    LocalDiskCache.printAndResetCacheRate();
   }
 
   @Benchmark
@@ -84,7 +87,8 @@ public class ReadFileBenchmark {
   private Repository getRepo() {
     if (engine.equals("mem")) return this.repository;
 
-    return DaemonExample.open(engine + "/" + repoName, false);
+    this.repository = DaemonExample.open(engine + "/" + repoName, false);
+    return this.repository;
   }
 
   public static void main(String[] args) throws IOException {
@@ -94,7 +98,9 @@ public class ReadFileBenchmark {
     p.setup();
     String content = p.readFile();
     System.out.println("content = " + content);
-    System.out.println("content = " + p.readFile());
+    for (int i = 0; i < 1000; i++) {
+      p.readFile();
+    }
     p.teardown();
   }
 }
