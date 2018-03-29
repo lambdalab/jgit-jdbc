@@ -15,6 +15,7 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int, localDiskCache: LocalD
     def offset =  chunkSize.toLong * chunk
     def end = offset + buf.writerIndex()
     def isFull(): Boolean = buf.writerIndex() >= chunkSize
+    val originStart = buf.readerIndex()
   }
 
   var current = BufHolder(Unpooled.buffer(chunkSize), 0)
@@ -61,7 +62,12 @@ abstract class ChunkedDfsOutputStream(val chunkSize: Int, localDiskCache: LocalD
 
   def flushBuffer(current: BufHolder): Unit
 
-  private def flushCache(current: BufHolder) =  localDiskCache.put(current.chunk,current.buf)
+  private def flushCache(current: BufHolder) =  {
+    current.buf.markReaderIndex()
+    current.buf.readerIndex(current.originStart)
+    localDiskCache.put(current.chunk,current.buf)
+    current.buf.resetReaderIndex()
+  }
 
   override def flush() = {
     if(current.isFull())

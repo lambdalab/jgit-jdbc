@@ -8,7 +8,12 @@ import com.lambdalab.jgit.jdbc.JdbcDfsPackDescription
 import io.netty.buffer.{ByteBuf, ByteBufInputStream, Unpooled}
 import scalikejdbc._
 
-case class Pack(repo: String, id: String, source: String, committed: Boolean, estimatedPackSize: Int)
+case class Pack(repo: String, id: String, source: String,
+                committed: Boolean, estimatedPackSize: Int, files: Seq[PackFile] = Nil)
+
+case class PackData(id: String, ext: String, chunk: Int, data: InputStream)
+
+case class PackFile(id: String, ext: String, size: Int)
 
 trait Packs extends SQLSyntaxSupport[Pack] {
   self: JdbcSchemaSupport =>
@@ -61,11 +66,19 @@ trait Packs extends SQLSyntaxSupport[Pack] {
 
   def apply(r: SyntaxProvider[Pack])(rs: WrappedResultSet): Pack = apply(r.resultName)(rs)
 
-  def all(implicit dBSession: DBSession) = {
+  def all(implicit dBSession: DBSession): Seq[Pack] = {
     val p = this.syntax("p")
-    withSQL {
-      select.from(this as p).where.eq(p.repo, repoName).and.eq(p.committed, true)
-    }.map(this (p)).list().apply()
+    val packTable = this
+    val packFileTable = new PackFileTable()
+    val f = packFileTable.syntax("f")
+    val sql: SQL[Pack,NoExtractor] = withSQL {
+      select.from(this as p).leftJoin(packFileTable as f).on(p.id, f.id)
+          .where.eq(p.repo, repoName).and.eq(p.committed, true)
+    }
+    sql.one(packTable(p))
+            .toMany(packFileTable.opt(f))
+            .map((pack, files) => pack.copy(files = files))
+            .list.apply()
   }
 
   def getFiles(id: String)(implicit dBSession: DBSession) = {
@@ -164,10 +177,6 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     delete.from(this).where.eq(this.column.repo, repoName)
   }.update().apply()
 
-  case class PackData(id: String, ext: String, chunk: Int, data: InputStream)
-
-  case class PackFile(id: String, ext: String, size: Int)
-
   class PackFileTable extends SQLSyntaxSupport[PackFile] {
     override lazy val tableName = self.packFileTableName
 
@@ -182,6 +191,8 @@ trait Packs extends SQLSyntaxSupport[Pack] {
     }
 
     def apply(r: SyntaxProvider[PackFile])(rs: WrappedResultSet): PackFile = apply(r.resultName)(rs)
+    def opt(m: SyntaxProvider[PackFile])(rs: WrappedResultSet): Option[PackFile] =
+      rs.stringOpt(m.resultName.id).map(_ => this(m)(rs))
   }
 
   class PackDataTable extends SQLSyntaxSupport[PackData] {

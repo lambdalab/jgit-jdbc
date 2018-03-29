@@ -29,16 +29,9 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   override def openFile(desc: DfsPackDescription, packExt: PackExt): ReadableChannel = {
     val id = desc.asInstanceOf[JdbcDfsPackDescription].id
     val ext = packExt.getExtension
-    val fileOption = db readOnly {
-      implicit s =>
-        packs.getFile(id, ext)
+    new ChunkedReadableChannel(chunkSize, getFileCache(id, ext)) {
+      override def size(): Long = desc.getFileSize(packExt)
     }
-    fileOption.map {
-      f =>
-        new ChunkedReadableChannel(chunkSize, getFileCache(id, ext)) {
-          override def size(): Long = f.size
-        }
-    }.getOrElse(EmptyReadableChannel)
   }
 
   private def readStream(is: InputStream) = {
@@ -93,9 +86,8 @@ class JdbcDfsObjDatabase(val repo: JdbcDfsRepository with JdbcSchemaSupport)
   }
 
   def toPackDescription(pack: Pack)(implicit dBSession: DBSession): DfsPackDescription = {
-    val exts = packs.getFiles(pack.id)
     val desc = JdbcDfsPackDescription(repo.getDescription, pack)
-    exts.foreach {
+    pack.files.foreach {
       f =>
         val ext = PackExt.newPackExt(f.ext)
         desc.addFileExt(ext)
