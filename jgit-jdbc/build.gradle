@@ -68,7 +68,7 @@ publishing {
   publications {
     MyPublication(MavenPublication) {
       from components.java
-      version "0.0.4"
+      version "0.0.5"
     }
   }
 }
@@ -84,7 +84,7 @@ bintray {
     licenses = ['Apache-2.0']
     vcsUrl = 'https://github.com/lambdalab/jgit-jdbc.git'
     version {
-      name = "0.0.4"
+      name = "0.0.5"
     }
   }
 }

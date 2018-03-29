@@ -8,9 +8,11 @@ import com.google.common.cache.AbstractLoadingCache
 import com.lambdalab.jgit.streams.LocalDiskCache.{Builder, Loader}
 import io.netty.buffer.{ByteBuf, Unpooled}
 import org.apache.commons.io.FileUtils
+import org.slf4j.LoggerFactory
 
 object LocalDiskCache {
   type Loader = (Int) => ByteBuf
+  val logger = LoggerFactory.getLogger(classOf[LocalDiskCache])
 
   case class Builder(file: File, chunkSize: Int, deleteOnClose: Boolean = false) {
     def build(loader: Loader): LocalDiskCache = {
@@ -71,7 +73,7 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
       try {
         writeChunk(chunk, buf)
       } catch {
-        case ex: Throwable => ex.printStackTrace()
+        case ex: Throwable => logger.error("", ex)
       }
       buf
     }
@@ -104,7 +106,11 @@ class LocalDiskCache(builder: Builder, loader: Loader) extends AbstractLoadingCa
   }
 
   override def put(chunk: Int, value: ByteBuf): Unit = {
-    writeChunk(chunk, value)
+    try {
+      writeChunk(chunk, value)
+    } catch {
+      case ex: Throwable => logger.error("", ex)
+    }
   }
 
   override def close(): Unit = {

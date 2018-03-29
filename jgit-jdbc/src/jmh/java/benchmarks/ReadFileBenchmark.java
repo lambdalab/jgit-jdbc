@@ -93,14 +93,18 @@ public class ReadFileBenchmark {
 
   public static void main(String[] args) throws IOException {
     ReadFileBenchmark p = new ReadFileBenchmark();
-    p.engine = "mysql";
+    p.engine = "file";
     p.repoName = "MEDIUM";
     p.setup();
-    String content = p.readFile();
-    System.out.println("content = " + content);
-    for (int i = 0; i < 1000; i++) {
-      p.readFile();
+    try {
+      while (true) {
+        for (int i = 0; i < 1000; i++) {
+          p.readFile();
+        }
+        LocalDiskCache.printAndResetCacheRate();
+      }
+    } catch (IOException e) {
+      p.teardown();
     }
-    p.teardown();
   }
 }
