@@ -11,8 +11,10 @@ import com.google.common.io.Files
 import com.lambdalab.jgit.cassandra.CassandraRepoBuilder
 import com.lambdalab.jgit.ignite.IgniteRepoBuilder
 import com.lambdalab.jgit.jdbc.{ClearableRepo, MysqlRepoBuilder, PostgresRepoBuilder}
+import io.insight.jgit.server.grpc.GrpcServer
+import io.insigit.jgit.RpcRepository
+import io.insigit.jgit.grpc.GrpcClientRepoManager
 import org.apache.commons.io.FileUtils
-import org.apache.commons.lang.math.RandomUtils
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder
 import org.eclipse.jgit.api.Git
@@ -37,6 +39,9 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
         FileUtils.deleteQuietly(f.getDirectory)
 
         reposCache.invalidate(name)
+        openRepo(name)
+      case f: RpcRepository =>
+        grpcRepoManager.delete(name)
         openRepo(name)
       case _ =>
         //        repo.close()
@@ -132,22 +137,29 @@ object DaemonExample extends RepositoryResolver[DaemonClient] {
         if (create && !r.exists())
           r.create()
         r
+      case "grpc" =>
+        if(grpcRepoManager.exists(repo))
+          grpcRepoManager.open(repo)
+        else
+          grpcRepoManager.create(repo)
       case _ =>
         new InMemoryRepository(new DfsRepositoryDescription(repo))
 
     }
   }
-
+  val grpcRepoManager = new GrpcClientRepoManager("localhost", 10000)
+  val grpcServer = new GrpcServer(10000, new File("/tmp/grpc"))
   val server = new Daemon(new InetSocketAddress(Daemon.DEFAULT_PORT))
   server.getService("git-receive-pack").setEnabled(true)
   server.setRepositoryResolver(this)
 
   def start(): Unit = {
     server.start()
+//    grpcServer.start()
   }
 
   def stop(): Unit = {
-
+//    grpcServer.stop()
     reposCache.invalidateAll()
     if (cassandraStarted)
       cassandraBuilder.close()

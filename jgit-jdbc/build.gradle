@@ -9,6 +9,7 @@ apply plugin: 'com.jfrog.bintray'
 group 'com.lambdalab.jgit'
 
 repositories {
+  mavenLocal()
   mavenCentral()
 }
 sourceCompatibility = 1.8
@@ -38,12 +39,16 @@ dependencies {
   compile 'org.scalikejdbc:scalikejdbc_2.11:3.1.0'
   compile 'org.apache.httpcomponents:httpclient:4.5'
   compile 'commons-io:commons-io:2.6'
+  compile 'com.google.guava:guava:22.0'
+  compile 'io.netty:netty-transport:4.1.22.Final'
+  compile 'io.netty:netty-handler:4.1.22.Final'
   testCompile 'com.github.docker-java:docker-java:3.0.9'
   testCompile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit.junit', version: jgitVersion
   testCompile 'org.scalatest:scalatest_2.11:3.0.0'
   testCompile group: 'junit', name: 'junit', version: '4.12'
   testCompile 'mysql:mysql-connector-java:5.1.35'
   testCompile "org.apache.ignite:ignite-rest-http:2.3.0"
+  testCompile "io.insight.git:dgit-server:1.0-SNAPSHOT"
 }
 
 

@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 @State(Scope.Benchmark)
 public class ReadFileBenchmark {
-  @Param({"mysql", "tidb", "file",/* "cassandra", "postgres","mysql",*/"mem"})
+  @Param({"mysql", "grpc", "file",/* "cassandra", "postgres","mysql","mem",*/})
   String engine;
 
   @Param({"MEDIUM", "SMALL"})
@@ -93,18 +93,12 @@ public class ReadFileBenchmark {
 
   public static void main(String[] args) throws IOException {
     ReadFileBenchmark p = new ReadFileBenchmark();
-    p.engine = "file";
+    p.engine = "grpc";
     p.repoName = "MEDIUM";
     p.setup();
-    try {
-      while (true) {
-        for (int i = 0; i < 1000; i++) {
-          p.readFile();
-        }
-        LocalDiskCache.printAndResetCacheRate();
-      }
-    } catch (IOException e) {
-      p.teardown();
-    }
+    String content = p.readFile();
+    System.out.println("content = " + content);
+    System.out.println("content = " + p.readFile());
+    p.teardown();
   }
 }
